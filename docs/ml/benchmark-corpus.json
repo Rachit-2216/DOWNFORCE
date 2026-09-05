@@ -1,0 +1,19 @@
+{
+  "ml_schema_version": "1.0.0",
+  "policy": "session-grouped chronological split; no lap-level randomization",
+  "sessions": [
+    {"session_id": "session-2023-event-formula-1-gulf-air-bahrain-grand-prix-2023-sha256-a7404b6dbeecae93ad6bbe948f426249455b627928c09ffb70416e19fec8f213-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-stc-saudi-arabian-grand-prix-2023-sha256-130afb34d68d4421c2651f071797f39ec02b5b3eb6a7f4cae9fe023b335418d3-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-crypto-com-miami-grand-prix-2023-sha256-3a1155dfc2bc0f116642f84abebde396e873699c8ab215a3c555900687c86e2c-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-aws-gran-premio-de-espana-2023-sha256-848cec2728bf86e4fee9c6a1dbd937b274ccc3c12d65a3a5b2839d7b2a230e00-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-rolex-grosser-preis-von-osterreich-2023-sha256-54c5767feb02d7a2a9e2f879782e708003f5d61fb3e74ac1ba83f7f49af6c6df-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-aramco-british-grand-prix-2023-sha256-4d61aa57796468000b205d16df24e22da4b6377c9aeebffe73b2c3dc49597a56-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-qatar-airways-hungarian-grand-prix-2023-sha256-1848f4b31cde4509021d6ed5116cc5ef701823cfd1c4c3779239a3eb8ee13ae2-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-pirelli-gran-premio-ditalia-2023-sha256-0974cff5fa7bbb9f8b54e7c88546e03a4ea7d294f4311782406fc351c08172d3-type-race", "split": "train"},
+    {"session_id": "session-2023-event-formula-1-singapore-airlines-singapore-grand-prix-2023-sha256-d25d011ad9f9238648a3a54074389d777692279e643eeee0d8c403809e670eac-type-race", "split": "train"},
+    {"session_id": "session-2024-event-formula-1-gulf-air-bahrain-grand-prix-2024-sha256-d8c08f7a8d95bff4503137f6ce2b665825094351fddd146e200395d7fc187f48-type-race", "split": "validation"},
+    {"session_id": "session-2024-event-formula-1-msc-cruises-japanese-grand-prix-2024-sha256-beb3fd4ab96e302e33ca274462b12bfd1d68ce3511c779ff27ec634b3d3cad5f-type-race", "split": "calibration"},
+    {"session_id": "session-2024-event-formula-1-qatar-airways-british-grand-prix-2024-sha256-c07c71607fa149fc935fbdb241c4cd10bb41230c5256dab4c1c27a32fdb2a344-type-race", "split": "test"},
+    {"session_id": "session-2024-event-formula-1-hungarian-grand-prix-2024-sha256-cdc7f18370f678e135dd423e4794e6c76b2a318c08c5b7cf80f158e32ed61f10-type-race", "split": "test"}
+  ]
+}

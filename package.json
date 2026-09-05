@@ -1,0 +1,25 @@
+{
+  "name": "downforce",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:api": "uv run uvicorn app.main:app --app-dir apps/api --reload --port 8000",
+    "lint": "pnpm lint:web && pnpm lint:api && pnpm format:check",
+    "lint:web": "pnpm --dir apps/web lint",
+    "lint:api": "uv run ruff check apps/api packages/downforce_core scripts",
+    "format:check": "pnpm --dir apps/web format:check && uv run ruff format --check apps/api packages/downforce_core scripts",
+    "typecheck": "pnpm typecheck:web && pnpm typecheck:api",
+    "typecheck:web": "pnpm --dir apps/web typecheck",
+    "typecheck:api": "uv run mypy apps/api packages/downforce_core/src packages/downforce_core/tests/unit/test_provider_contract.py scripts/benchmark_historical.py scripts/data_source_spike.py",
+    "test": "pnpm test:web && pnpm test:api",
+    "test:web": "pnpm --dir apps/web test",
+    "test:api": "uv run pytest",
+    "build": "pnpm build:web",
+    "build:web": "pnpm --dir apps/web build"
+  }
+}

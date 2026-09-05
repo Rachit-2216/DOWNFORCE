@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.27.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint:web
+
+      - name: Check formatting
+        run: pnpm --dir apps/web format:check
+
+      - name: Type-check
+        run: pnpm typecheck:web
+
+      - name: Test
+        run: pnpm test:web
+
+      - name: Build
+        run: pnpm build:web
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check apps/api packages/downforce_core scripts
+
+      - name: Check formatting
+        run: uv run ruff format --check apps/api packages/downforce_core scripts
+
+      - name: Type-check
+        run: uv run mypy apps/api packages/downforce_core/src scripts/data_source_spike.py
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Import application
+        run: uv run python -c "from app.main import app; assert app.title == 'DOWNFORCE API'"
+        env:
+          PYTHONPATH: apps/api

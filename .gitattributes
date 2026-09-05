@@ -1,0 +1,40 @@
+* text=auto
+
+# Source, configuration, documentation and lockfiles use LF on every platform.
+*.css text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.lock text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+.editorconfig text eol=lf
+.env* text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.prettierignore text eol=lf
+
+# Keep binary assets out of text conversion and textual diffs.
+*.avif binary
+*.gif binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.otf binary
+*.pdf binary
+*.png binary
+*.ttf binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.zip binary

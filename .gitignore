@@ -1,0 +1,68 @@
+# JavaScript / Next.js
+node_modules/
+.pnpm-store/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.uv-cache/
+
+# Environment and local tooling
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+
+# Private local documentation and workspaces
+**/*.md
+!/README.md
+!/data/README.md
+/.*/
+!/.github/
+/local-*/
+/private-*/
+/scratch/
+
+# Local design and research sources
+/references/
+
+# Provider caches and data products
+.downforce/
+data/raw/
+data/normalized/
+data/processed/
+data/cache/
+data/simulations/
+!data/README.md
+
+# Generated assets and test artifacts
+/assets/
+assets-source/
+render-exports/
+output/
+playwright-report/
+test-results/
+.playwright-cli/
+htmlcov/
+.coverage
+coverage.xml
+.nyc_output/
+junit*.xml
+*.log
+*.tmp
+*.bak
+
+# OS noise
+.DS_Store
+Thumbs.db

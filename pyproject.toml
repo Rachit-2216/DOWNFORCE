@@ -1,0 +1,55 @@
+[project]
+name = "downforce-foundation"
+version = "0.1.0"
+description = "DOWNFORCE API and domain-foundation development environment"
+requires-python = ">=3.12"
+dependencies = [
+  "downforce-core",
+  "fastapi>=0.128,<1.0",
+  "pydantic-settings>=2.12,<3.0",
+  "uvicorn>=0.40,<1.0",
+]
+
+[dependency-groups]
+dev = [
+  "httpx2>=2.7,<3.0",
+  "mypy>=1.17,<2.0",
+  "pytest>=8.4,<10.0",
+  "ruff>=0.12,<1.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+downforce-core = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/downforce_core"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["apps/api"]
+testpaths = ["apps/api/tests", "packages/downforce_core/tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["apps/api"]
+files = [
+  "apps/api",
+  "packages/downforce_core/src",
+  "packages/downforce_core/tests/unit/test_provider_contract.py",
+  "scripts/benchmark_historical.py",
+  "scripts/data_source_spike.py",
+]
