@@ -9,7 +9,6 @@
       "root": ".",
       "framework": "fastapi",
       "entrypoint": "apps.api.index:app",
-      "installCommand": "uv sync --locked --no-dev",
       "functions": {
         "apps/api/index.py": {
           "includeFiles": "{product-data/**,packages/downforce_core/src/**}",

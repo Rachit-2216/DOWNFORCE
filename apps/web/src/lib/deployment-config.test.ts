@@ -21,9 +21,9 @@ describe("production deployment", () => {
     expect(config.services.frontend.root).toBe("apps/web");
     expect(config.services.backend.root).toBe(".");
     expect(config.services.backend.entrypoint).toBe("apps.api.index:app");
-    expect(config.services.backend.installCommand).toBe(
-      "uv sync --locked --no-dev",
-    );
+    // Managed Python installation uses locked production dependencies and enables
+    // Vercel's standard-size packaging; custom commands disable that path.
+    expect(config.services.backend.installCommand).toBeUndefined();
     expect(
       config.services.backend.functions["apps/api/index.py"].includeFiles,
     ).toBe("{product-data/**,packages/downforce_core/src/**}");
