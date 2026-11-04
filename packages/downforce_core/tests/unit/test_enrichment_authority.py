@@ -136,13 +136,17 @@ def test_gate_clock_rejects_rollback_from_last_success_and_ignores_failed_gate(
     admission = admit(root, session)
     clock[0] = base + timedelta(hours=2)
     admission.check()
-    source = root / "inventory.json"
-    original = source.stat()
     clock[0] = base + timedelta(hours=3)
-    os.utime(source, ns=(original.st_atime_ns, original.st_mtime_ns + 1_000_000))
-    with pytest.raises(ValueError):
-        admission.check()
-    os.utime(source, ns=(original.st_atime_ns, original.st_mtime_ns))
+
+    def failed_directory_check():
+        raise ValueError("temporary directory gate failure")
+
+    # Fail a gate without editing immutable input metadata: on POSIX restoring
+    # mtime cannot restore ctime, so the previous fixture remained genuinely stale.
+    with monkeypatch.context() as failed_gate:
+        failed_gate.setattr(admission, "_directories", failed_directory_check)
+        with pytest.raises(ValueError, match="temporary directory gate failure"):
+            admission.check()
     clock[0] = base + timedelta(hours=2)
     admission.check()  # The failed gate must not move the last-success clock.
     clock[0] = base + timedelta(hours=1)

@@ -165,9 +165,14 @@ def assess_corpus(project: Path, paths: DetailedPaths, *, validate: bool) -> dic
     sessions: list[dict[str, Any]] = []
     native_entries: dict[str, Any] = {}
     failures: list[dict[str, str]] = []
-    identities = (
-        sorted(path.name for path in paths.canonical.iterdir()) if paths.canonical.exists() else []
-    )
+    identities: list[str] = []
+    try:
+        if paths.canonical.exists():
+            identities = sorted(path.name for path in paths.canonical.iterdir())
+    except _ERRORS as exc:
+        # An unreadable publication root must not erase previously captured
+        # job failures or provider-stop provenance from a read-only assessment.
+        failures.append(_failure("canonical", exc))
     for identity in identities:
         try:
             manifest = (store.validate if validate else store.manifest)(identity)
