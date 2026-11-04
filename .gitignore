@@ -28,7 +28,9 @@ venv/
 # Private local documentation and workspaces
 **/*.md
 !/README.md
-!/data/README.md
+**/*.txt
+!**/requirements*.txt
+!**/CMakeLists.txt
 /.*/
 !/.github/
 /local-*/
@@ -45,7 +47,6 @@ data/normalized/
 data/processed/
 data/cache/
 data/simulations/
-!data/README.md
 
 # Generated assets and test artifacts
 /assets/

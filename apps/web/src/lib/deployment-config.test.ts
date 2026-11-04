@@ -11,6 +11,16 @@ afterEach(() => {
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 
 describe("production deployment", () => {
+  it("keeps private prose files ignored while allowing the product README and dependency inputs", () => {
+    const rules = readFileSync(`${root}/.gitignore`, "utf8").split(/\r?\n/);
+    expect(rules).toContain("**/*.md");
+    expect(rules).toContain("**/*.txt");
+    expect(rules).toContain("!/README.md");
+    expect(rules).toContain("!**/requirements*.txt");
+    expect(rules).not.toContain("!/data/README.md");
+    expect(rules).not.toContain("!data/README.md");
+  });
+
   it("deploys both services and routes the API before the frontend catch-all", () => {
     const configPath = `${root}/vercel.json`;
     expect(

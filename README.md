@@ -243,7 +243,6 @@ DOWNFORCE/
 │   └── downforce_core/      # Canonical data, replay, analytics, ML, and simulation domain
 ├── artifacts/               # Reviewed, versioned model artifacts and registries
 ├── product-data/            # Verified, compact read-only public dataset
-├── data/                    # Data policy and small metadata only
 ├── scripts/                 # Ingestion, validation, benchmarking, and operations
 └── .downforce/              # Local data, caches, features, jobs, and simulations (ignored)
 ```
@@ -442,9 +441,25 @@ terms do not permit redistribution.
 ## Data, accuracy, and attribution
 
 DOWNFORCE uses public and community-accessible motorsport data according to each provider's terms.
-See [DATA-NOTICE.txt](DATA-NOTICE.txt) for snapshot attribution and separate data-rights notices.
 Availability and precision vary by season, session, circuit, channel, and source. Analyses should be
 interpreted within the coverage, assumptions, and uncertainty displayed by the platform.
+
+The compact public snapshot contains selected normalized historical records, derived analytics,
+replay records and versioned model artifacts. The manifest retains source and content identities;
+the snapshot is neither a live feed nor the complete native telemetry corpus.
+
+Historical archive data comes from **Jolpica F1 and its upstream/community contributors**.
+Its published terms provide data under
+[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+Retain attribution and applicable share-alike terms for adaptations; commercial use requires
+separate review or permission under the [provider's terms](https://github.com/jolpica/jolpica-f1/blob/main/TERMS.md).
+
+Selected replay records were normalized from existing FastF1-supported source captures.
+[FastF1](https://github.com/theOehrly/Fast-F1) is an unofficial, MIT-licensed software library;
+that software license does not license underlying provider data, images or marks. Those materials
+remain subject to their owners' rights and source terms. This notice creates no additional
+redistribution grant. Local captures, credentials, caches and bulk native datasets are not included;
+download or import additional data only through authorized access and according to source terms.
 
 DOWNFORCE is an independent, unofficial project. It is not associated with Formula 1, the FIA, any
 team, constructor, driver, or data provider. Formula 1 and related marks belong to their respective
