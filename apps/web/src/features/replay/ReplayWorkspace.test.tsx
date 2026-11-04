@@ -290,4 +290,36 @@ describe("replay workspace integration", () => {
       ),
     ).toBe(false);
   });
+
+  it.each(["local", "visitor"])(
+    "uses %s replay telemetry availability",
+    async (profile) => {
+      vi.stubEnv("NEXT_PUBLIC_DATA_PROFILE", profile);
+      installCanonicalFetch();
+      render(<ReplayWorkspace sessionId={sessionId} />);
+      await screen.findByRole("button", { name: /status active/i });
+      if (profile === "visitor") {
+        expect(
+          screen.queryByRole("link", { name: "Telemetry Lab" }),
+        ).not.toBeInTheDocument();
+        vi.unstubAllEnvs();
+        return;
+      }
+      const link = await screen.findByRole("link", { name: "Telemetry Lab" });
+      await waitFor(() =>
+        expect(link.getAttribute("href")).toContain("driver_a=44"),
+      );
+      expect(link.getAttribute("href")).toContain(
+        "replay_session_id=session-test",
+      );
+      expect(
+        new URL(
+          link.getAttribute("href")!,
+          window.location.origin,
+        ).searchParams.has("session"),
+      ).toBe(false);
+      expect(link.getAttribute("href")).toContain("lap_a=1");
+      vi.unstubAllEnvs();
+    },
+  );
 });

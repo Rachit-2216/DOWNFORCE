@@ -31,6 +31,8 @@ import { TimingTower } from "./TimingTower";
 import { TrackMap } from "./TrackMap";
 import { clamp, formatClock, longestDriverTrace } from "./replay-utils";
 import { useReplayController } from "./useReplayController";
+import { telemetryContextLink } from "@/features/telemetry/url-state";
+import { isVisitorEdition } from "@/lib/data-profile";
 
 type StaticReplayData = {
   session: SessionResponse;
@@ -271,15 +273,31 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
       ? null
       : new URLSearchParams(window.location.search).get("t");
   const initialFromUrl = rawInitial === null ? null : Number(rawInitial);
+  const contextQuery =
+    typeof window === "undefined"
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+  const contextDriver = data.drivers.find(
+    (d) =>
+      d.driver_id === contextQuery.get("driver") ||
+      String(d.racing_number) === contextQuery.get("driver"),
+  );
+  const contextLap = data.laps.find(
+    (l) =>
+      l.driver_id === contextDriver?.driver_id &&
+      l.lap_number === Number(contextQuery.get("lap")),
+  );
   const initialMs =
     initialFromUrl !== null && Number.isFinite(initialFromUrl)
       ? clamp(initialFromUrl, minimumMs, maximumMs)
-      : raceStartMs;
+      : (contextLap?.lap_end_time_ms ?? raceStartMs);
   const controller = useReplayController(minimumMs, maximumMs, initialMs);
   const [raceState, setRaceState] = useState<RaceState | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
   const [stateRefreshKey, setStateRefreshKey] = useState(0);
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(
+    contextDriver?.driver_id ?? null,
+  );
   const [positions, setPositions] = useState<TrackPosition[]>([]);
   const [positionError, setPositionError] = useState<string | null>(null);
   const [loadedPositionBucket, setLoadedPositionBucket] = useState<
@@ -459,6 +477,26 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
           <Link href="/app">Sessions</Link>
           <span>/</span>
           <strong>{eventName}</strong>
+          {!isVisitorEdition() && (
+            <Link
+              href={telemetryContextLink(
+                "replay",
+                data.session.session_id,
+                selectedDriver?.racing_number != null
+                  ? String(selectedDriver.racing_number)
+                  : undefined,
+                data.laps.some(
+                  (lap) =>
+                    lap.driver_id === selectedDriver?.driver_id &&
+                    lap.lap_number === selectedDriver?.laps_completed,
+                )
+                  ? selectedDriver?.laps_completed
+                  : undefined,
+              )}
+            >
+              Telemetry Lab
+            </Link>
+          )}
         </nav>
         <div className="replay-topbar__status">
           <i aria-hidden="true" />

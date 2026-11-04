@@ -1,7 +1,12 @@
 # DOWNFORCE data workspace
 
-This directory contains policy and small metadata only. Historical timing, telemetry, provider
-responses, normalized tables, features and simulation outputs must not be committed to Git.
+This directory contains policy and small metadata only. Raw provider responses, caches, bulk
+native telemetry, features and generated simulation outputs must not be committed to Git.
+
+The narrow exception is `product-data/` at the repository root: a reviewed, immutable public
+snapshot of normalized product records and model artifacts, with a pinned manifest and checksums.
+It supports the read-only hosted edition without an external storage account. It is not a provider
+cache, raw-response archive or the full local corpus. Attribution is in `DATA-NOTICE.txt`.
 
 Runtime data belongs under the ignored `.downforce/` tree:
 

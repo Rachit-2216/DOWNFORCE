@@ -120,6 +120,17 @@ def _parser() -> argparse.ArgumentParser:
         "analytics", help="build and inspect deterministic historical analytics"
     )
     analytics.add_argument("action", choices=("rebuild", "status", "coverage"))
+    detailed_storage = commands.add_parser(
+        "detailed-storage", help="inspect detailed storage safety"
+    )
+    detailed_storage.add_argument("action", choices=("status", "plan", "project", "restore"))
+    detailed_storage.add_argument("--data-root", type=Path)
+    detailed_storage.add_argument("--bundle")
+    detailed_storage.add_argument("--destination", type=Path)
+    detailed_storage.add_argument("--seed", type=int, default=2216)
+    from downforce_core.cli.corpus import add_command
+
+    add_command(commands)
     return parser
 
 
@@ -139,6 +150,24 @@ def _result_dict(result: IngestionResult) -> dict[str, object]:
 
 def _run(args: argparse.Namespace) -> dict[str, object]:
     root = Path(args.root).resolve()
+    if args.command == "detailed":
+        from downforce_core.cli.corpus import corpus_command
+
+        return corpus_command(args)
+    if args.command == "detailed-storage":
+        from downforce_core.detailed.cli import storage_command
+        from downforce_core.detailed.paths import DetailedPaths
+
+        try:
+            return storage_command(
+                DetailedPaths(root, override=args.data_root),
+                args.action,
+                bundle=args.bundle,
+                destination=args.destination,
+                seed=args.seed,
+            )
+        except OSError as exc:
+            raise ValueError("detailed storage evidence unavailable: " + str(exc)) from exc
     repository = DownforceRepository(root)
     if args.command == "analytics":
         engine = AnalyticsEngine(HistoricalArchiveStore(root))
@@ -439,9 +468,20 @@ def _run(args: argparse.Namespace) -> dict[str, object]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
+    if (
+        args.command == "detailed"
+        and args.detailed_action == "sync"
+        and not (
+            args.all_completed
+            or args.session
+            or args.season is not None
+            or args.from_season is not None
+        )
+    ):
+        parser.error("detailed sync requires --all-completed, --session, --season or --from-season")
     try:
         output = _run(args)
-    except (DownforceError, ValueError, TypeError) as exc:
+    except (DownforceError, ValueError, TypeError, OSError) as exc:
         print(
             json.dumps(
                 {"error": type(exc).__name__, "message": str(exc)},

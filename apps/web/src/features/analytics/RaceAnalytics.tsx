@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { ApiClientError, getRaceAnalytics } from "@/lib/api/client";
 import type { RaceAnalyticsResponse } from "@/lib/api/types";
+import { isVisitorEdition } from "@/lib/data-profile";
 
 import {
   AnalyticsPage,
@@ -68,6 +69,13 @@ export function RaceAnalytics({ sessionId }: { sessionId: string }) {
             Open race overview
           </Link>
           <Link href={`/app/replay/${sessionId}`}>Open replay</Link>
+          {!isVisitorEdition() && Number(data.event.season) >= 2018 && (
+            <Link
+              href={`/app/telemetry?race_session_id=${encodeURIComponent(sessionId)}`}
+            >
+              Open Telemetry Lab
+            </Link>
+          )}
         </div>
       </PageIntro>
       <MetricStrip

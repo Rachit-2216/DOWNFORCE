@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "fastf1==3.8.3",
   "httpx2>=2.7,<3.0",
   "mypy>=1.17,<2.0",
   "pytest>=8.4,<10.0",

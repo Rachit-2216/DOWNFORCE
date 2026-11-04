@@ -17,6 +17,24 @@ simulation, and research tools while preserving provenance and uncertainty at ev
 
 > DOWNFORCE never mixes what happened with what a model predicted or a simulation imagined.
 
+## Online workspace and the full local experience
+
+[Open DOWNFORCE](https://downforcef1.vercel.app/app) to explore the curated public edition:
+27 seasons of history, 515 completed race archives, 13 detailed race replays, historical analytics,
+and versioned pace, tyre, pit-loss and strategy tools. Coverage is an immutable snapshot, not a live feed;
+replay and intelligence are available only for the sessions that contain the required evidence.
+
+**For the full DOWNFORCE experience, clone this repository and run it locally.** The public edition
+ships a compact, read-only dataset; the local research environment supports the larger datasets,
+native telemetry and implemented functionality that are not hosted online. You control which
+legitimately available datasets to download or import, and can use all of your acquired data locally.
+Cloning includes the public snapshot and application code—not the ignored provider caches or the
+entire native telemetry corpus. Provider availability, access terms and actual coverage still apply;
+running locally does not create missing observations or unlock features that are not implemented.
+
+The public edition requires no separate paid database or object-storage service. Hosting remains
+subject to Vercel's free-tier quotas; it is not an unlimited or guaranteed-availability service.
+
 ## Platform
 
 | System                              | What it provides                                                                                                                   |
@@ -224,6 +242,7 @@ DOWNFORCE/
 ├── packages/
 │   └── downforce_core/      # Canonical data, replay, analytics, ML, and simulation domain
 ├── artifacts/               # Reviewed, versioned model artifacts and registries
+├── product-data/            # Verified, compact read-only public dataset
 ├── data/                    # Data policy and small metadata only
 ├── scripts/                 # Ingestion, validation, benchmarking, and operations
 └── .downforce/              # Local data, caches, features, jobs, and simulations (ignored)
@@ -263,14 +282,57 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-The default configuration serves the web application at `http://localhost:3000` and the API at
-`http://127.0.0.1:8000`. Set `NEXT_PUBLIC_API_URL` and the `DOWNFORCE_*` variables in `.env` when
-using different origins or runtime settings.
+The API reads the root `.env`. Next.js reads environment variables from its process or
+`apps/web/.env.local`, not the repository-root `.env`. Defaults connect the browser to
+`http://127.0.0.1:8000`; when using another API origin, set `NEXT_PUBLIC_API_URL` in the web process.
 
-### 3. Build the historical workspace
+### 3. Start immediately with the included data
 
-Runtime datasets are intentionally not stored in Git. Synchronize completed Grand Prix history,
-validate it, and build the local analytics store:
+No provider request, storage account or credential is needed for the bundled snapshot.
+Start the API in one terminal:
+
+macOS/Linux:
+
+```bash
+DOWNFORCE_STORAGE_BACKEND=bundled pnpm dev:api
+```
+
+Windows PowerShell:
+
+```powershell
+$env:DOWNFORCE_STORAGE_BACKEND = "bundled"
+pnpm dev:api
+```
+
+Start the web application in another terminal:
+
+macOS/Linux:
+
+```bash
+NEXT_PUBLIC_DATA_PROFILE=visitor pnpm dev:web
+```
+
+Windows PowerShell:
+
+```powershell
+$env:NEXT_PUBLIC_DATA_PROFILE = "visitor"
+pnpm dev:web
+```
+
+Open [http://localhost:3000/app](http://localhost:3000/app). The API health endpoint is
+[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health), and its interactive schema is
+[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+### 4. Use the full local research environment
+
+Use the `local` storage backend and `local` web data profile to work with your own ignored
+`.downforce/` workspace. Set `DOWNFORCE_STORAGE_BACKEND=local` in the API terminal and
+`NEXT_PUBLIC_DATA_PROFILE=local` in the web terminal, then restart both applications. For PowerShell,
+use `$env:NAME = "value"`; for macOS/Linux, prefix the launch command with `NAME=value`.
+
+The bundled edition is read-only; it does not populate the writable local ingestion workspace.
+To build that workspace, synchronize available completed Grand Prix history, validate it,
+and build local analytics:
 
 ```bash
 uv run python -m downforce_core.cli --root . archive sync --start-year 2000 --completed-only
@@ -285,11 +347,11 @@ uv run python -m downforce_core.cli --root . ingest --season 2024 --event Britis
 ```
 
 Provider downloads can take time and remain subject to provider availability, rate limits, terms,
-and data coverage. All downloaded and generated runtime material stays under `.downforce/`.
+and data coverage. Stop on an access denial; do not circumvent it. Existing source captures may be
+imported only when you are entitled to use them. A clone does not guarantee access to every session.
+All downloaded and generated runtime material stays under `.downforce/`.
 
-### 4. Start DOWNFORCE
-
-Run the API and web application in separate terminals:
+With the local profiles configured, run the API and web application in separate terminals:
 
 ```bash
 pnpm dev:api
@@ -298,12 +360,6 @@ pnpm dev:api
 ```bash
 pnpm dev:web
 ```
-
-Open:
-
-- Product: [http://localhost:3000](http://localhost:3000)
-- API health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-- Interactive API schema: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ### Production build
 
@@ -386,6 +442,7 @@ terms do not permit redistribution.
 ## Data, accuracy, and attribution
 
 DOWNFORCE uses public and community-accessible motorsport data according to each provider's terms.
+See [DATA-NOTICE.txt](DATA-NOTICE.txt) for snapshot attribution and separate data-rights notices.
 Availability and precision vary by season, session, circuit, channel, and source. Analyses should be
 interpreted within the coverage, assumptions, and uncertainty displayed by the platform.
 

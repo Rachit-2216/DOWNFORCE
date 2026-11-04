@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ApiClientError,
   compareAnalytics,
   getAnalyticsRankings,
+  getCatalogSeasons,
   getHealth,
   getRaceState,
   getTrackPositions,
@@ -11,6 +12,7 @@ import {
 } from "./client";
 
 describe("API client", () => {
+  afterEach(() => vi.unstubAllEnvs());
   it("validates and returns the health contract", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
@@ -48,10 +50,63 @@ describe("API client", () => {
     ).rejects.toThrow("invalid health response");
   });
 
-  it("fails clearly when production configuration is missing", () => {
-    expect(() => resolveApiBaseUrl(undefined, "production")).toThrow(
-      ApiClientError,
+  it("uses the deployed same-origin API without a build-time public env var", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    expect(resolveApiBaseUrl()).toBe("");
+    expect(resolveApiBaseUrl("/", "production")).toBe("");
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [],
+          total: 0,
+          event_count: 0,
+          completed_event_count: 0,
+          latest_completed_event_date: null,
+        }),
+      ),
     );
+    await getCatalogSeasons({ fetcher });
+    expect(fetcher.mock.calls[0]?.[0]).toBe("/api/v1/catalog/seasons");
+  });
+
+  it("keeps local development and explicit API origins supported", () => {
+    expect(resolveApiBaseUrl("", "development")).toBe("http://127.0.0.1:8000");
+    expect(resolveApiBaseUrl(" https://api.example.com/ ", "production")).toBe(
+      "https://api.example.com",
+    );
+  });
+
+  it("reports missing deployed API routing rather than an opaque HTML 404", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("<!doctype html><h1>Not found</h1>", {
+        status: 404,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+    await expect(getCatalogSeasons({ baseUrl: "", fetcher })).rejects.toThrow(
+      /backend.*not.*deployed|API.*route.*unavailable/i,
+    );
+  });
+
+  it("rejects a non-catalog JSON payload before it can crash the workspace", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ message: "frontend fallback" })),
+      );
+    await expect(
+      getCatalogSeasons({ baseUrl: "", fetcher }),
+    ).rejects.toBeInstanceOf(ApiClientError);
+  });
+
+  it("wraps malformed successful JSON as a recoverable API error", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("<!doctype html><h1>Landing page</h1>"));
+    await expect(
+      getCatalogSeasons({ baseUrl: "", fetcher }),
+    ).rejects.toBeInstanceOf(ApiClientError);
   });
 
   it("encodes canonical identifiers and mutually exclusive time cursors", async () => {

@@ -371,17 +371,24 @@ name = "downforce-core"
 version = "0.1.0"
 source = { editable = "packages/downforce_core" }
 dependencies = [
-    { name = "fastf1" },
     { name = "pandas" },
     { name = "pyarrow" },
+    { name = "requests" },
+]
+
+[package.optional-dependencies]
+ingestion = [
+    { name = "fastf1" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "fastf1", specifier = "==3.8.3" },
+    { name = "fastf1", marker = "extra == 'ingestion'", specifier = "==3.8.3" },
     { name = "pandas", specifier = ">=2.2,<4.0" },
     { name = "pyarrow", specifier = ">=18,<30" },
+    { name = "requests", specifier = ">=2.31,<3" },
 ]
+provides-extras = ["ingestion"]
 
 [[package]]
 name = "downforce-foundation"
@@ -396,6 +403,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fastf1" },
     { name = "httpx2" },
     { name = "mypy" },
     { name = "pytest" },
@@ -412,6 +420,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fastf1", specifier = "==3.8.3" },
     { name = "httpx2", specifier = ">=2.7,<3.0" },
     { name = "mypy", specifier = ">=1.17,<2.0" },
     { name = "pytest", specifier = ">=8.4,<10.0" },

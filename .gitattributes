@@ -38,3 +38,6 @@
 *.woff binary
 *.woff2 binary
 *.zip binary
+
+# Immutable content-addressed product files must survive every clone byte-for-byte.
+product-data/** -text

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isVisitorEdition } from "@/lib/data-profile";
 
 export function AppHeader({ context }: { context: string }) {
   return (
@@ -13,6 +14,7 @@ export function AppHeader({ context }: { context: string }) {
         <nav aria-label="Product navigation">
           <Link href="/app">Explore</Link>
           <Link href="/app/analytics">Analytics</Link>
+          {!isVisitorEdition() && <Link href="/app/telemetry">Telemetry</Link>}
           <Link href="/app/replays">Detailed replays</Link>
         </nav>
         <span>{context}</span>

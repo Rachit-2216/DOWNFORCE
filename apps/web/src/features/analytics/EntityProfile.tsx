@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import { ApiClientError, getEntityAnalytics } from "@/lib/api/client";
 import type { EntityAnalyticsResponse } from "@/lib/api/types";
+import { isVisitorEdition } from "@/lib/data-profile";
 
 import {
   AnalyticsPage,
@@ -216,21 +217,30 @@ export function EntityProfile({ kind, id }: { kind: EntityKind; id: string }) {
         </header>
         <div>
           {data.races.items.map((race) => (
-            <Link
-              key={String(race.session_id)}
-              href={`/app/analytics/races/${String(race.session_id)}`}
-            >
-              <span>
-                {String(race.season)} · R
-                {String(race.round_number).padStart(2, "0")}
-              </span>
-              <strong>{String(race.event_name)}</strong>
-              <small>
-                {race.finish_position
-                  ? `Finish P${String(race.finish_position)}`
-                  : `${formatMetric(race.wins)} wins / ${formatMetric(race.points)} pts`}
-              </small>
-            </Link>
+            <Fragment key={String(race.session_id)}>
+              <Link
+                key={String(race.session_id)}
+                href={`/app/analytics/races/${String(race.session_id)}`}
+              >
+                <span>
+                  {String(race.season)} · R
+                  {String(race.round_number).padStart(2, "0")}
+                </span>
+                <strong>{String(race.event_name)}</strong>
+                <small>
+                  {race.finish_position
+                    ? `Finish P${String(race.finish_position)}`
+                    : `${formatMetric(race.wins)} wins / ${formatMetric(race.points)} pts`}
+                </small>
+              </Link>
+              {!isVisitorEdition() && Number(race.season) >= 2018 && (
+                <Link
+                  href={`/app/telemetry?race_session_id=${encodeURIComponent(String(race.session_id))}`}
+                >
+                  Telemetry Lab · {String(race.event_name)}
+                </Link>
+              )}
+            </Fragment>
           ))}
         </div>
         {data.races.total > data.races.items.length ? (

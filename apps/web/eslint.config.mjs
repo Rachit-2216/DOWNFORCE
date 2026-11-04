@@ -9,6 +9,7 @@ export default defineConfig([
     ".next/**",
     "out/**",
     "coverage/**",
+    "**/graphify-out/**",
     "public/draco/**",
     "next-env.d.ts",
   ]),

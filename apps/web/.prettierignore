@@ -3,3 +3,4 @@ coverage/
 node_modules/
 next-env.d.ts
 public/draco/
+**/graphify-out/**

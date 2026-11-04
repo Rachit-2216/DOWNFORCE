@@ -9,6 +9,7 @@ import {
   getCatalogSeasons,
 } from "@/lib/api/client";
 import type { CatalogEvent, CatalogSeasonListResponse } from "@/lib/api/types";
+import { isVisitorEdition, RUN_LOCALLY_URL } from "@/lib/data-profile";
 
 type LoadState =
   | { kind: "loading" }
@@ -186,6 +187,14 @@ export function ExploreArchive() {
           Browse results, laps, pit stops, detailed timing and full DOWNFORCE
           replays through one capability-aware archive.
         </p>
+        {isVisitorEdition() && (
+          <p className="coverage-note">
+            Curated visitor edition · Archive, analytics, detailed replays and
+            frozen intelligence from a read-only snapshot. Telemetry and the
+            full research environment run on your machine with locally acquired
+            datasets. <a href={RUN_LOCALLY_URL}>Run locally</a>.
+          </p>
+        )}
         <dl>
           <div>
             <dt>Completed races</dt>
@@ -218,7 +227,9 @@ export function ExploreArchive() {
             value={capability}
             onChange={(event) => setCapability(event.target.value)}
           >
-            {CAPABILITY_FILTERS.map(([value, label]) => (
+            {CAPABILITY_FILTERS.filter(
+              ([value]) => !isVisitorEdition() || value !== "telemetry",
+            ).map(([value, label]) => (
               <option value={value} key={value || "all"}>
                 {label}
               </option>

@@ -1,0 +1,29 @@
+DOWNFORCE public data snapshot
+
+DOWNFORCE is an independent, unofficial, non-commercial motorsport research
+project. It is not affiliated with Formula 1, the FIA, teams or data providers.
+Formula 1 and related names and marks belong to their respective owners.
+
+The compact product-data snapshot contains selected normalized historical race
+records, derived analytics, replay records and versioned model artifacts. Its
+manifest retains source and content identities. It is not a live data feed or
+the complete native telemetry corpus. Missing observations remain unavailable.
+
+Historical archive source: Jolpica F1 and its upstream/community contributors.
+Jolpica's published terms provide data under Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
+Retain attribution and applicable share-alike terms for adaptations. Commercial
+use requires separate review/permission under the provider's terms.
+Terms: https://github.com/jolpica/jolpica-f1/blob/main/TERMS.md
+License: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Selected replay records were normalized from existing FastF1-supported source
+captures. FastF1 is an unofficial, MIT-licensed software library; its software
+license does not grant a license to underlying provider data, images or marks.
+Those materials remain subject to their respective owners' rights and source
+terms. This notice does not create or assert an additional redistribution grant.
+FastF1: https://github.com/theOehrly/Fast-F1
+
+Local provider captures, credentials, caches and bulk native datasets are not
+included in this snapshot. Download or import additional data only through
+authorized access and in accordance with the applicable source terms.

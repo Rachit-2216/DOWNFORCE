@@ -61,9 +61,9 @@ export function resolveApiBaseUrl(
     return "http://127.0.0.1:8000";
   }
 
-  throw new ApiClientError(
-    "NEXT_PUBLIC_API_URL is not configured. Set it to the DOWNFORCE API origin.",
-  );
+  // Production ingress routes /api/v1 to the backend on this deployment.
+  // Do not require a public build-time variable for a same-origin application.
+  return "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -154,6 +154,15 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
+    if (
+      response.status === 404 &&
+      response.headers.get("Content-Type")?.includes("text/html")
+    ) {
+      throw new ApiClientError(
+        "The API route is unavailable on this deployment. The frontend is online, but the backend has not been deployed or connected.",
+        response.status,
+      );
+    }
     let detail = `HTTP ${response.status}`;
     try {
       const payload: unknown = await response.json();
@@ -173,7 +182,17 @@ async function requestJson<T>(
     );
   }
 
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
+    throw new ApiClientError(
+      "The API returned an invalid JSON response. Please retry when the backend is available.",
+      response.status,
+      { cause: error },
+    );
+  }
 }
 
 function queryString(
@@ -197,10 +216,33 @@ export function getSessions(
   return requestJson("/api/v1/sessions?limit=100", options);
 }
 
-export function getCatalogSeasons(
+export async function getCatalogSeasons(
   options: ApiRequestOptions = {},
 ): Promise<CatalogSeasonListResponse> {
-  return requestJson("/api/v1/catalog/seasons", options);
+  const payload = await requestJson<unknown>(
+    "/api/v1/catalog/seasons",
+    options,
+  );
+  // A proxy's JSON error/fallback must not enter React state as a season list.
+  if (
+    !isRecord(payload) ||
+    !Array.isArray(payload.items) ||
+    !payload.items.every(
+      (item: unknown) =>
+        isRecord(item) &&
+        Number.isInteger(item.year) &&
+        Number.isInteger(item.event_count) &&
+        Number.isInteger(item.completed_event_count),
+    ) ||
+    !Number.isInteger(payload.total) ||
+    !Number.isInteger(payload.event_count) ||
+    !Number.isInteger(payload.completed_event_count) ||
+    (payload.latest_completed_event_date !== null &&
+      typeof payload.latest_completed_event_date !== "string")
+  ) {
+    throw new ApiClientError("The API returned an invalid season catalog.");
+  }
+  return payload as CatalogSeasonListResponse;
 }
 
 export function getCatalogEvents(
