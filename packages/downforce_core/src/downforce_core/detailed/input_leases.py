@@ -11,15 +11,18 @@ https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfil
 from __future__ import annotations
 
 import ctypes
+import importlib
 import os
 import stat
 from collections.abc import Mapping
 from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from downforce_core.detailed.provider_guard import _unlinked_path
+
+_windows_ctypes = importlib.import_module("ctypes")
 
 
 class _FileTime(ctypes.Structure):
@@ -79,9 +82,15 @@ def _path_identity(path: Path, *, directory: bool = False) -> tuple[int, ...]:
     return (*identity, getattr(info, "st_file_attributes", 0)) if directory else identity
 
 
+def _windows_error() -> OSError:
+    # ctypes exposes these attributes only on Windows. Resolve them at the
+    # existing native boundary rather than requiring Linux typing stubs to.
+    return cast(OSError, _windows_ctypes.WinError(_windows_ctypes.get_last_error()))
+
+
 class _Windows:
     def __init__(self) -> None:
-        kernel: Any = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel: Any = _windows_ctypes.WinDLL("kernel32", use_last_error=True)
         self.create: Any = kernel.CreateFileW
         self.create.argtypes = [
             wintypes.LPCWSTR,
@@ -118,19 +127,19 @@ class _Windows:
             None,  # OPEN_REPARSE_POINT and directory BACKUP_SEMANTICS only.
         )
         if handle is None or handle == ctypes.c_void_p(-1).value:
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise _windows_error()
         return int(handle)
 
     def info(self, handle: int) -> _Information:
         value = _Information()
         if not self.information(handle, ctypes.byref(value)):
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise _windows_error()
         return value
 
     def identity(self, handle: int) -> tuple[int, int]:
         value = _FileId()
         if not self.file_id(handle, 18, ctypes.byref(value), ctypes.sizeof(value)):
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise _windows_error()
         return int(value.volume), int.from_bytes(bytes(value.identifier), "little")
 
 
@@ -244,7 +253,7 @@ class _LeaseSet:
         for handle in reversed(self._owned):
             try:
                 if not self.api.close(handle):
-                    raise ctypes.WinError(ctypes.get_last_error())
+                    raise _windows_error()
             except BaseException as exc:
                 failures.append(exc)
         self._owned.clear()

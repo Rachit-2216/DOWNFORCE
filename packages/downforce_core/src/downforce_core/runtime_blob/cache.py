@@ -69,7 +69,7 @@ def _open(path: Path, flags: int) -> int:
 
 def _os_lock(descriptor: int, *, unlock: bool = False) -> None:
     if os.name == "nt":
-        import msvcrt
+        msvcrt = importlib.import_module("msvcrt")
 
         os.lseek(descriptor, 0, os.SEEK_SET)
         msvcrt.locking(descriptor, msvcrt.LK_UNLCK if unlock else msvcrt.LK_NBLCK, 1)

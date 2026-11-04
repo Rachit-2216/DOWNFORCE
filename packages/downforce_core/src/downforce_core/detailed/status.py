@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import shutil
@@ -236,12 +237,13 @@ def _filesystem(existing: Path) -> str:
 
     volume = ctypes.create_unicode_buffer(1024)
     filesystem = ctypes.create_unicode_buffer(256)
-    volume_path = ctypes.windll.kernel32.GetVolumePathNameW
+    kernel = importlib.import_module("ctypes").windll.kernel32
+    volume_path = kernel.GetVolumePathNameW
     volume_path.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
     volume_path.restype = wintypes.BOOL
     if not volume_path(str(existing), volume, len(volume)):
         return "unknown (volume path unavailable)"
-    information = ctypes.windll.kernel32.GetVolumeInformationW
+    information = kernel.GetVolumeInformationW
     information.argtypes = [
         wintypes.LPCWSTR,
         wintypes.LPWSTR,

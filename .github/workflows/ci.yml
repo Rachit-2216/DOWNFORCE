@@ -72,7 +72,9 @@ jobs:
         run: uv run ruff format --check apps/api packages/downforce_core scripts
 
       - name: Type-check
-        run: uv run mypy apps/api packages/downforce_core/src scripts/data_source_spike.py
+        run: |
+          uv run mypy --platform linux apps/api packages/downforce_core/src scripts/data_source_spike.py
+          uv run mypy --platform win32 apps/api packages/downforce_core/src scripts/data_source_spike.py
 
       - name: Test
         run: uv run pytest
