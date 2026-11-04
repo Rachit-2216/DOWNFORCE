@@ -10,6 +10,16 @@ export const semanticGroups = [
 ] as const;
 
 export type SemanticGroup = (typeof semanticGroups)[number];
+export const componentImages: Partial<Record<CarScene, string>> = {
+  "spotlight-front-wing": "/images/components/front_wing.png",
+  "spotlight-nose": "/images/components/nose_front_structure.png",
+  "spotlight-front-axle": "/images/components/front_axle_assembly.png",
+  "spotlight-monocoque": "/images/components/monocoque_cockpit.png",
+  "spotlight-sidepods": "/images/components/sidepods_engine_cover.png",
+  "spotlight-floor": "/images/components/floor_diffuser.png",
+  "spotlight-rear-axle": "/images/components/rear_axle_assembly.png",
+  "spotlight-rear-wing": "/images/components/rear_wing.png",
+};
 export type Vec3 = readonly [number, number, number];
 export type TextSide = "left" | "right" | "center";
 
@@ -71,22 +81,20 @@ export const explosionOffsets: Record<SemanticGroup, Vec3> = {
 
 const spotlight = (
   group: SemanticGroup,
-  textSide: Exclude<TextSide, "center">,
   rootRotation: Vec3,
   scale: number,
   componentRotation: Vec3,
   lighting: LightingMode,
 ): LandingPose => {
-  const visualCenter = textSide === "left" ? 2.55 : -2.55;
   return {
     mode: "spotlight",
-    rootPosition: [visualCenter, 0, 0],
+    rootPosition: [0, 0, 0],
     rootRotation,
-    rootScale: 1.08,
-    cameraPosition: [0, 3.3, 11.4],
+    rootScale: 0.94,
+    cameraPosition: [0, 2.8, 11.4],
     cameraTarget: [0, 0, 0],
-    cameraFov: 31,
-    textSide,
+    cameraFov: 36,
+    textSide: "right",
     lighting,
     focus: {
       group,
@@ -119,12 +127,12 @@ const story = (
 export const landingPoses: Record<CarScene, LandingPose> = {
   hero: {
     mode: "assembled",
-    rootPosition: [3, -0.1, 0],
+    rootPosition: [0, -0.1, 0],
     rootRotation: [0.04, -0.62, -0.018],
-    rootScale: 1.2,
-    cameraPosition: [0, 3.3, 9.6],
+    rootScale: 0.96,
+    cameraPosition: [0, 2.8, 10.8],
     cameraTarget: [0, -0.05, 0],
-    cameraFov: 32,
+    cameraFov: 36,
     textSide: "left",
     lighting: "studio",
   },
@@ -143,8 +151,8 @@ export const landingPoses: Record<CarScene, LandingPose> = {
     mode: "exploded",
     rootPosition: [0, 0, 0],
     rootRotation: [-0.13, -0.44, 0],
-    rootScale: 1,
-    cameraPosition: [6.5, 4.8, 10.5],
+    rootScale: 0.76,
+    cameraPosition: [5, 4, 12],
     cameraTarget: [0, 0, 0],
     cameraFov: 36,
     textSide: "center",
@@ -152,7 +160,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   },
   "spotlight-front-wing": spotlight(
     "DF_FRONT_WING",
-    "right",
     [0.22, -0.05, 0],
     2.2,
     [0.1, 0, 0],
@@ -160,7 +167,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-nose": spotlight(
     "DF_NOSE",
-    "left",
     [0.28, -0.55, -0.02],
     2.15,
     [0, -0.08, 0],
@@ -168,7 +174,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-front-axle": spotlight(
     "DF_FRONT_AXLE",
-    "right",
     [0.2, -0.35, 0],
     2,
     [0.02, 0.12, 0],
@@ -176,7 +181,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-monocoque": spotlight(
     "DF_MONOCOQUE",
-    "left",
     [0.48, -0.72, 0.02],
     1.75,
     [0.08, 0.05, 0],
@@ -184,7 +188,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-sidepods": spotlight(
     "DF_SIDEPODS_ENGINE",
-    "right",
     [0.06, -1.35, -0.02],
     1.62,
     [0, 0.08, 0],
@@ -192,7 +195,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-floor": spotlight(
     "DF_FLOOR_DIFFUSER",
-    "left",
     [-0.72, -0.55, 0.04],
     1.75,
     [-0.2, 0, 0.03],
@@ -200,7 +202,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-rear-axle": spotlight(
     "DF_REAR_AXLE",
-    "right",
     [0.22, 2.35, 0],
     2.1,
     [0.02, 0.08, 0],
@@ -208,7 +209,6 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   ),
   "spotlight-rear-wing": spotlight(
     "DF_REAR_WING",
-    "left",
     [0.16, 3.05, 0],
     2.8,
     [0.08, 0, 0],
@@ -229,10 +229,10 @@ export const landingPoses: Record<CarScene, LandingPose> = {
     mode: "assembled",
     rootPosition: [0, 0.1, 0],
     rootRotation: [0.03, -0.72, -0.015],
-    rootScale: 1.5,
-    cameraPosition: [5.6, 3.2, 8.6],
+    rootScale: 0.96,
+    cameraPosition: [0, 2.8, 10.8],
     cameraTarget: [0, 0, 0],
-    cameraFov: 32,
+    cameraFov: 36,
     textSide: "center",
     lighting: "studio",
   },
@@ -255,6 +255,28 @@ export const landingPoses: Record<CarScene, LandingPose> = {
     lighting: "side",
   },
 };
+
+export function heroScaleForViewport(width: number, height: number): number {
+  const pose = landingPoses.hero;
+  if (width <= 0 || height <= 0) return pose.rootScale;
+  // Grow the wide hero's presence without applying the same zoom at 1024px.
+  // Cap the full-turn bounding sphere against the horizontal camera frustum.
+  const presence = Math.min(
+    1.34,
+    Math.max(0.86, pose.rootScale + (width - 614) * 0.00144),
+  );
+  const halfFov = (pose.cameraFov * Math.PI) / 360;
+  const horizontalHalfFov = Math.atan((Math.tan(halfFov) * width) / height);
+  const cameraDistance = Math.hypot(
+    pose.cameraPosition[0] - pose.cameraTarget[0],
+    pose.cameraPosition[1] - pose.cameraTarget[1],
+    pose.cameraPosition[2] - pose.cameraTarget[2],
+  );
+  const modelRadius = Math.hypot(1.972, 1.174, 5.268) / 2;
+  const safeHorizontalScale =
+    (cameraDistance * Math.sin(horizontalHalfFov) * 0.88) / modelRadius;
+  return Math.min(presence, safeHorizontalScale);
+}
 
 export function sceneForComponent(index: number): CarScene {
   return [

@@ -4,6 +4,8 @@ import { AppHeader } from "@/components/app/AppHeader";
 import { ExploreArchive } from "@/features/catalog/ExploreArchive";
 import TelemetryPage from "@/app/app/telemetry/page";
 
+vi.mock("next/navigation", () => ({ usePathname: () => "/app" }));
+
 afterEach(() => {
   cleanup();
   vi.unstubAllEnvs();
@@ -27,9 +29,31 @@ describe("visitor edition", () => {
       screen.queryByRole("link", { name: "Telemetry" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Analytics" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Detailed replays" }),
-    ).toBeInTheDocument();
+    const destinations = [
+      ["Archive", "/app"],
+      ["Analytics", "/app/analytics"],
+      ["Replays", "/app/replays"],
+      ["Intelligence", "/app/replays?mode=intelligence"],
+      ["Strategy", "/app/replays?mode=strategy"],
+    ];
+    for (const [name, href] of destinations) {
+      expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+    }
+    expect(screen.getByRole("link", { name: "Archive" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("supports explicit active context for a race workstation", () => {
+    render(<AppHeader context="Race / Strategy" activeSection="strategy" />);
+    expect(screen.getByRole("link", { name: "Strategy" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Archive" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it.each(["visitor", "local"])(

@@ -12,6 +12,10 @@ import { RaceOverview } from "@/features/catalog/RaceOverview";
 
 import DownforceAppPage from "./page";
 
+vi.mock("@/components/product/OnlineTools", () => ({
+  OnlineTools: () => <section aria-label="Online race tools" />,
+}));
+
 const seasons = {
   items: [
     {
@@ -89,7 +93,7 @@ describe("application shell", () => {
     render(<DownforceAppPage />);
     expect(
       screen.getByRole("heading", {
-        name: /every race.*only the data that actually exists/i,
+        name: /the race is only the beginning/i,
       }),
     ).toBeInTheDocument();
     expect(
@@ -113,7 +117,7 @@ describe("application shell", () => {
 
     const view = render(<DownforceAppPage />);
     await screen.findByRole("link", { name: /british grand prix/i });
-    fireEvent.click(screen.getByRole("button", { name: /all.*26\+ seasons/i }));
+    fireEvent.click(screen.getByRole("button", { name: /all.*1 season/i }));
     await waitFor(() => expect(window.location.search).toBe("?season=all"));
     expect(
       screen.getByRole("heading", { name: "All seasons" }),

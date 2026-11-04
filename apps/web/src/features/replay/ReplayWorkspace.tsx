@@ -292,6 +292,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
       ? clamp(initialFromUrl, minimumMs, maximumMs)
       : (contextLap?.lap_end_time_ms ?? raceStartMs);
   const controller = useReplayController(minimumMs, maximumMs, initialMs);
+  const { seek: seekCursor, setPlaying: setCursorPlaying } = controller;
   const [raceState, setRaceState] = useState<RaceState | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
   const [stateRefreshKey, setStateRefreshKey] = useState(0);
@@ -330,10 +331,20 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
     const onPopState = () => {
       setMode(initialReplayMode());
       setSubview(initialReplaySubview());
+      const id = new URLSearchParams(window.location.search).get("driver");
+      const driver = data.drivers.find(
+        (item) => item.driver_id === id || String(item.racing_number) === id,
+      );
+      if (driver) setSelectedDriverId(driver.driver_id);
+      const rawTime = new URLSearchParams(window.location.search).get("t");
+      if (rawTime !== null && Number.isFinite(Number(rawTime))) {
+        setCursorPlaying(false);
+        seekCursor(clamp(Number(rawTime), minimumMs, maximumMs));
+      }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [data.drivers, seekCursor, setCursorPlaying, minimumMs, maximumMs]);
 
   useEffect(() => {
     const request = ++stateSequence.current;
@@ -464,6 +475,23 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
   const eventName = data.session.session.event_name ?? "Historical race";
   const circuitName =
     data.session.session.circuit_name ?? "Circuit unavailable";
+  const chooseDriver = (id: string) => {
+    if (!data.drivers.some((driver) => driver.driver_id === id)) return;
+    setSelectedDriverId(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("driver", id);
+    url.searchParams.delete("lap");
+    window.history.replaceState(null, "", url);
+  };
+  const representativeLap = data.laps.find(
+    (lap) =>
+      lap.driver_id === selectedDriverId &&
+      lap.lap_number === 5 &&
+      lap.lap_end_time_ms !== null &&
+      Number.isFinite(lap.lap_end_time_ms) &&
+      lap.lap_end_time_ms >= minimumMs &&
+      lap.lap_end_time_ms <= maximumMs,
+  );
   return (
     <div className="replay-shell">
       <a className="skip-link" href="#main-content">
@@ -474,7 +502,9 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
           DOWNFORCE
         </Link>
         <nav aria-label="Replay breadcrumb">
-          <Link href="/app">Sessions</Link>
+          <Link href="/app">Archive</Link>
+          <Link href="/app/analytics">Analytics</Link>
+          <Link href="/app/replays">Race library</Link>
           <span>/</span>
           <strong>{eventName}</strong>
           {!isVisitorEdition() && (
@@ -546,20 +576,58 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
             </button>
           ))}
         </nav>
-        {(mode === "replay" ||
-          mode === "intelligence" ||
-          mode === "strategy") && (
-          <ReplayController
-            controller={controller}
-            minimumMs={minimumMs}
-            maximumMs={maximumMs}
-            referenceLap={raceState?.reference_lap ?? null}
-            maximumLap={maximumLap}
-            trackStatus={raceState?.track_status ?? "loading"}
-            onLapSeek={seekToLap}
-            isStateLoading={stateLoading}
-          />
-        )}
+        <section className="race-context" aria-label="Shared race context">
+          <label>
+            <span>Driver</span>
+            <select
+              aria-label="Selected driver"
+              value={selectedDriverId ?? ""}
+              onChange={(event) => chooseDriver(event.target.value)}
+            >
+              <option value="" disabled>
+                Choose a driver
+              </option>
+              {data.drivers.map((driver) => (
+                <option value={driver.driver_id} key={driver.driver_id}>
+                  {driver.racing_number} · {driver.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>
+            <span className="evidence-dot" />
+            One driver. One race cursor.
+            <small>
+              Every tool uses the same selected moment. Predictions use only
+              evidence available then.
+            </small>
+          </p>
+          {representativeLap?.lap_end_time_ms != null ? (
+            <button
+              type="button"
+              onClick={() => {
+                controller.setPlaying(false);
+                controller.seek(representativeLap.lap_end_time_ms!);
+              }}
+            >
+              Jump to completed lap 5<span aria-hidden="true">↗</span>
+            </button>
+          ) : (
+            <span className="race-context__note">
+              Choose a driver and use the timeline to explore completed laps.
+            </span>
+          )}
+        </section>
+        <ReplayController
+          controller={controller}
+          minimumMs={minimumMs}
+          maximumMs={maximumMs}
+          referenceLap={raceState?.reference_lap ?? null}
+          maximumLap={maximumLap}
+          trackStatus={raceState?.track_status ?? "loading"}
+          onLapSeek={seekToLap}
+          isStateLoading={stateLoading}
+        />
         {stateError && (
           <div className="replay-inline-error" role="alert">
             <strong>State reconciliation failed.</strong>
@@ -642,7 +710,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
                   <TimingTower
                     drivers={raceState?.drivers ?? []}
                     selectedDriverId={selectedDriverId}
-                    onSelect={setSelectedDriverId}
+                    onSelect={chooseDriver}
                   />
                 </>
               )}
@@ -651,7 +719,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
                   <TimingTower
                     drivers={raceState?.drivers ?? []}
                     selectedDriverId={selectedDriverId}
-                    onSelect={setSelectedDriverId}
+                    onSelect={chooseDriver}
                   />
                   <DriverInspector driver={selectedDriver} laps={data.laps} />
                 </>
@@ -692,7 +760,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
             <TimingTower
               drivers={raceState?.drivers ?? []}
               selectedDriverId={selectedDriverId}
-              onSelect={setSelectedDriverId}
+              onSelect={chooseDriver}
             />
             <DriverInspector driver={selectedDriver} laps={data.laps} />
           </section>

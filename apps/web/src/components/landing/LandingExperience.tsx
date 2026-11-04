@@ -14,51 +14,30 @@ import {
 } from "react";
 
 import {
-  componentSpotlights,
   finalCtaContent,
   footerContent,
   heroContent,
-  productStories,
+  publicFeatures,
 } from "@/content/landing";
+import { OnlineTools } from "@/components/product/OnlineTools";
 
-import {
-  landingPoses,
-  sceneForComponent,
-  sceneForStory,
-  type CarScene,
-} from "./car-motion";
+import { CarAnatomy } from "./CarAnatomy";
+import { type CarScene } from "./car-motion";
+import { scrollChapter, selectionAtChapter } from "./scroll-choreography";
 
 const RB22Scene = dynamic(() => import("./RB22Scene"), {
   ssr: false,
-  loading: () => <StaticCar scene="hero" label="Loading interactive RB22" />,
+  loading: () => <StaticCar />,
 });
 
-const componentImages: Partial<Record<CarScene, string>> = {
-  "spotlight-front-wing": "/images/components/front_wing.png",
-  "spotlight-nose": "/images/components/nose_front_structure.png",
-  "spotlight-front-axle": "/images/components/front_axle_assembly.png",
-  "spotlight-monocoque": "/images/components/monocoque_cockpit.png",
-  "spotlight-sidepods": "/images/components/sidepods_engine_cover.png",
-  "spotlight-floor": "/images/components/floor_diffuser.png",
-  "spotlight-rear-axle": "/images/components/rear_axle_assembly.png",
-  "spotlight-rear-wing": "/images/components/rear_wing.png",
-};
-
-function StaticCar({
-  scene,
-  label = "Red Bull RB22 race car",
-}: {
-  scene: CarScene;
-  label?: string;
-}) {
-  const componentImage = componentImages[scene];
+function StaticCar() {
   return (
-    <div
-      className={`landing-car-fallback${componentImage ? " landing-car-fallback--component" : ""}`}
-      role="img"
-      aria-label={label}
-    >
-      <img src={componentImage ?? "/images/rb22-static.png"} alt="" />
+    <div className="machine-static" aria-hidden="true">
+      <img
+        className="machine-static__subject"
+        src="/images/rb22-static.png"
+        alt=""
+      />
     </div>
   );
 }
@@ -68,21 +47,14 @@ class SceneBoundary extends Component<
   { failed: boolean }
 > {
   state = { failed: false };
-
   static getDerivedStateFromError() {
     return { failed: true };
   }
-
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("RB22 WebGL scene unavailable", error, info.componentStack);
   }
-
   render() {
-    return this.state.failed ? (
-      <StaticCar scene={this.props.scene} />
-    ) : (
-      this.props.children
-    );
+    return this.state.failed ? <StaticCar /> : this.props.children;
   }
 }
 
@@ -96,17 +68,19 @@ function hasWebGL() {
 }
 
 function usePresentationMode() {
-  const [mode, setMode] = useState<"interactive" | "static">("static");
+  const [interactive, setInteractive] = useState(false);
+  const [webgl, setWebgl] = useState(false);
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const compact = window.matchMedia("(max-width: 720px)");
-    const update = () =>
-      setMode(
-        reduced.matches || compact.matches || !hasWebGL()
-          ? "static"
-          : "interactive",
-      );
+    const compact = window.matchMedia(
+      "(max-width: 800px), (max-height: 759px)",
+    );
+    const supported = hasWebGL();
+    const update = () => {
+      setWebgl(supported);
+      setInteractive(!reduced.matches && !compact.matches && supported);
+    };
     update();
     reduced.addEventListener("change", update);
     compact.addEventListener("change", update);
@@ -115,22 +89,22 @@ function usePresentationMode() {
       compact.removeEventListener("change", update);
     };
   }, []);
-  return mode;
-}
-
-function navArea(scene: CarScene) {
-  if (scene.startsWith("story-") || scene === "final-cta")
-    return "capabilities";
-  if (scene === "hero") return "hero";
-  return "system";
+  return { interactive, webgl };
 }
 
 export function LandingExperience() {
-  const [scene, setScene] = useState<CarScene>("hero");
+  const [anatomyScene, setAnatomyScene] = useState<CarScene>("reassemble");
+  const [chapter, setChapter] = useState(() => scrollChapter(0));
+  const [stageVisible, setStageVisible] = useState(true);
   const [documentVisible, setDocumentVisible] = useState(true);
-  const narrativeRef = useRef<HTMLDivElement>(null);
-  const presentationMode = usePresentationMode();
-  const activeNav = navArea(scene);
+  const [compactRequested, setCompactRequested] = useState(false);
+  const machineRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const anatomyRef = useRef<HTMLDivElement>(null);
+  const transferRef = useRef(0);
+  const chapterRef = useRef("transfer");
+  const { interactive, webgl } = usePresentationMode();
+  const scene = chapter.phase === "transfer" ? "hero" : anatomyScene;
 
   useEffect(() => {
     const update = () => setDocumentVisible(!document.hidden);
@@ -140,240 +114,285 @@ export function LandingExperience() {
   }, []);
 
   useEffect(() => {
-    const root = narrativeRef.current;
-    if (!root || typeof IntersectionObserver === "undefined") return;
-    const sections = [
-      ...root.querySelectorAll<HTMLElement>("[data-car-scene]"),
-    ];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const active = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const next = (active?.target as HTMLElement | undefined)?.dataset
-          .carScene as CarScene | undefined;
-        if (next) setScene(next);
-      },
-      { rootMargin: "-34% 0px -43%", threshold: [0, 0.12, 0.35, 0.65] },
+    const machine = machineRef.current;
+    const anatomy = anatomyRef.current;
+    if (!machine || !anatomy || !interactive) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const rect = anatomy.getBoundingClientRect();
+      const viewport = window.innerHeight;
+      const transfer = Math.max(
+        0,
+        Math.min(1, 1 - rect.top / (viewport * 0.8)),
+      );
+      const progress =
+        rect.top > 0
+          ? transfer * 0.14
+          : 0.14 + (-rect.top / Math.max(1, rect.height - viewport)) * 0.86;
+      transferRef.current = transfer;
+      machine.style.setProperty("--machine-transfer", String(transfer));
+      machine.style.setProperty(
+        "--tour-progress",
+        String(Math.max(0, Math.min(1, progress))),
+      );
+      const next = scrollChapter(progress);
+      // Per-pixel progress stays outside React. A native button selection is
+      // respected until actual scrolling crosses into another chapter.
+      if (next.key !== chapterRef.current) {
+        const previousKey = chapterRef.current;
+        chapterRef.current = next.key;
+        setChapter(next);
+        setAnatomyScene((current) =>
+          selectionAtChapter(current, previousKey, next),
+        );
+      }
+    };
+    const requestUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+    };
+  }, [interactive]);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const visibilityObserver = new IntersectionObserver(
+      ([entry]) => setStageVisible(Boolean(entry?.isIntersecting)),
+      { threshold: 0 },
     );
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+    if (stageRef.current) visibilityObserver.observe(stageRef.current);
+    return () => {
+      visibilityObserver.disconnect();
+    };
   }, []);
 
   return (
-    <div className="landing" ref={narrativeRef} data-active-scene={scene}>
+    <div className="public-experience">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="landing-nav">
-        <Link className="wordmark wordmark--landing" href="/">
+      <header className="public-nav">
+        <Link className="public-wordmark" href="/" aria-label="DOWNFORCE home">
           <i aria-hidden="true" />
           DOWNFORCE
         </Link>
-        <nav aria-label="Primary navigation">
-          <a
-            className={activeNav === "system" ? "is-active" : undefined}
-            href="#system"
-          >
-            System
-          </a>
-          <a
-            className={activeNav === "capabilities" ? "is-active" : undefined}
-            href="#capabilities"
-          >
-            Capabilities
-          </a>
-          <Link className="nav-entry" href="/app">
-            Open workspace <span aria-hidden="true">↗</span>
-          </Link>
+        <nav aria-label="Main navigation">
+          <Link href="/app">Explore</Link>
+          <Link href="/app/analytics">Analytics</Link>
+          <Link href="/app/replays">Replays</Link>
+          <a href="#anatomy">Anatomy</a>
         </nav>
+        <Link className="public-nav__entry" href="/app/replays">
+          Open the app <span aria-hidden="true">↗</span>
+        </Link>
       </header>
-
-      <div className="landing-car-layer" aria-live="off">
-        <div className="landing-car-layer__frame">
-          {presentationMode === "interactive" ? (
-            <SceneBoundary scene={scene}>
-              <RB22Scene active={documentVisible} scene={scene} />
-            </SceneBoundary>
-          ) : (
-            <StaticCar scene={scene} />
-          )}
-        </div>
-        <span className="landing-car-layer__datum">
-          RB22 / SEMANTIC ASSEMBLY
-        </span>
-      </div>
-
       <main id="main-content">
-        <section className="landing-hero" data-car-scene="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">{heroContent.eyebrow}</p>
-            <h1>{heroContent.title}</h1>
-            <h2>{heroContent.descriptor}</h2>
-            <p className="hero-copy__body">{heroContent.body}</p>
-            <div className="landing-actions">
-              <Link className="button button--primary" href="/app">
-                {heroContent.primaryCta} <span aria-hidden="true">↗</span>
-              </Link>
-              <a className="button button--secondary" href="#system">
-                {heroContent.secondaryCta} <span aria-hidden="true">↓</span>
+        <div
+          className="public-machine"
+          ref={machineRef}
+          data-tour={interactive}
+        >
+          <div className="machine-track" aria-hidden="true">
+            <div
+              ref={stageRef}
+              className={`machine-stage${stageVisible && documentVisible ? "" : " machine-stage--paused"}`}
+            >
+              {interactive ? (
+                <SceneBoundary scene={scene}>
+                  <RB22Scene
+                    active={stageVisible && documentVisible}
+                    scene={scene}
+                    transfer={transferRef}
+                  />
+                </SceneBoundary>
+              ) : (
+                <StaticCar />
+              )}
+              <p className="machine-datum">
+                RB22 / ENGINEERING STUDY <span>08 SYSTEMS</span>
+              </p>
+            </div>
+          </div>
+          <section
+            className="public-hero"
+            id="public-hero"
+            aria-labelledby="public-title"
+          >
+            <div className="public-hero__copy">
+              <p className="public-eyebrow">{heroContent.eyebrow}</p>
+              <h1 id="public-title">{heroContent.title}</h1>
+              <h2>{heroContent.descriptor}</h2>
+              <p className="public-lead">{heroContent.body}</p>
+              <div className="public-actions">
+                <Link
+                  className="public-button public-button--primary"
+                  href="/app/replays"
+                >
+                  {heroContent.primaryCta} <span aria-hidden="true">↗</span>
+                </Link>
+                <Link className="public-button" href="/app">
+                  {heroContent.secondaryCta} <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+              <p className="public-hero__note">
+                No setup. Choose a race and start exploring.
+              </p>
+            </div>
+            <div className="machine-mobile-hero">
+              <StaticCar />
+            </div>
+            <div
+              className="public-snapshot"
+              aria-label="Current published coverage"
+            >
+              <span className="public-eyebrow">PUBLISHED SNAPSHOT</span>
+              <span>27 seasons</span>
+              <span>515 races</span>
+              <span>13 detailed replays</span>
+              <a href="#anatomy">
+                Inside the machine <span aria-hidden="true">↓</span>
               </a>
             </div>
-            <p className="hero-copy__micro">{heroContent.microcopy}</p>
+          </section>
+          <div className="anatomy-container" ref={anatomyRef}>
+            <CarAnatomy
+              scene={anatomyScene}
+              onSceneChange={(next) => {
+                setAnatomyScene(next);
+                setCompactRequested(true);
+              }}
+              tourPhase={interactive ? chapter.phase : undefined}
+              stage={
+                !interactive && webgl && compactRequested ? (
+                  <SceneBoundary scene={anatomyScene}>
+                    <RB22Scene
+                      active={documentVisible}
+                      scene={anatomyScene}
+                      transfer={transferRef}
+                      animate={false}
+                    />
+                  </SceneBoundary>
+                ) : undefined
+              }
+            />
           </div>
-          <div className="hero-proof" aria-label="Verified platform scope">
-            {heroContent.proof.split(" • ").map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-          </div>
-          <span className="scroll-cue" aria-hidden="true">
-            Scroll to inspect <i />
-          </span>
-        </section>
-
+        </div>
         <section
-          className="machine-handoff"
-          data-car-scene="hero-center"
-          aria-label="The machine takes center stage"
+          className="public-products"
+          aria-labelledby="products-title"
+          id="online-tools"
         >
-          <p>THE MACHINE TAKES CENTER STAGE</p>
-        </section>
-
-        <section
-          className="analysis-intro"
-          id="system"
-          data-car-scene="exploded"
-          aria-labelledby="analysis-title"
-        >
-          <div>
-            <p className="section-kicker">ANATOMY / PERFORMANCE SYSTEMS</p>
-            <h2 id="analysis-title">
-              EIGHT SYSTEMS.
+          <header className="public-section-heading">
+            <p className="public-eyebrow">02 / FROM THE MACHINE TO THE RACE</p>
+            <h2 id="products-title">
+              <span className="public-heading-line">
+                Understand what happened.
+              </span>
               <br />
-              ONE LAP TIME.
+              <span className="public-heading-line">
+                Question what comes next.
+              </span>
             </h2>
             <p>
-              Separate the car. Follow the systems that turn airflow, grip and
-              balance into performance.
+              One workspace. A clear boundary between the historical record,
+              model estimates and simulated alternatives.
+            </p>
+          </header>
+          <div
+            className="public-evidence"
+            aria-label="How to read the evidence"
+          >
+            <span>
+              <i />
+              Observed <small>The historical record</small>
+            </span>
+            <span>
+              <i />
+              Predicted <small>Estimates with uncertainty</small>
+            </span>
+            <span>
+              <i />
+              Simulated <small>Plausible alternatives</small>
+            </span>
+          </div>
+          <OnlineTools />
+          <div className="public-feature-grid">
+            {publicFeatures.map((feature, index) => (
+              <article
+                className={`public-feature public-feature--${feature.kind}`}
+                key={feature.label}
+              >
+                <div className="public-feature__top">
+                  <span className="public-eyebrow">{feature.label}</span>
+                  <span aria-hidden="true">0{index + 1}</span>
+                </div>
+                <h3>{feature.title}</h3>
+                <p>{feature.body}</p>
+                <ul>
+                  {feature.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+                <Link href={feature.href}>
+                  {feature.action} <span aria-hidden="true">↗</span>
+                </Link>
+              </article>
+            ))}
+          </div>
+          <div className="public-trust">
+            <span className="public-eyebrow">
+              UNCERTAINTY IS PART OF THE ANSWER
+            </span>
+            <p>
+              When the evidence cannot separate strategies, there is no clear
+              preference. Unsupported estimates stay unavailable, not disguised
+              as precision.
             </p>
           </div>
         </section>
-
-        <div className="component-sequence">
-          {componentSpotlights.map((component, index) => {
-            const componentScene = sceneForComponent(index);
-            const textSide = landingPoses[componentScene].textSide;
-            return (
-              <section
-                className={`component-spotlight component-spotlight--text-${textSide}`}
-                data-car-scene={componentScene}
-                aria-labelledby={`component-${index}-title`}
-                key={component.group}
-              >
-                <article className="component-card">
-                  <div className="component-card__progress">
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <i>
-                      <b
-                        style={{
-                          width: `${((index + 1) / componentSpotlights.length) * 100}%`,
-                        }}
-                      />
-                    </i>
-                    <span>
-                      {String(componentSpotlights.length).padStart(2, "0")}
-                    </span>
-                  </div>
-                  <p className="section-kicker">
-                    {String(index + 1).padStart(2, "0")} — {component.system}
-                  </p>
-                  <h2 id={`component-${index}-title`}>{component.title}</h2>
-                  <p>{component.body}</p>
-                  <div className="technical-tags">
-                    {component.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                  </div>
-                </article>
-              </section>
-            );
-          })}
-        </div>
-
-        <section
-          className="exploded-restore"
-          data-car-scene="exploded-restore"
-          aria-label="All systems return to the exploded assembly"
-        >
-          <p>08 / 08 — ALL SYSTEMS IN VIEW</p>
-        </section>
-
-        <section className="reassembly" data-car-scene="reassemble">
-          <div>
-            <p className="section-kicker">SYSTEM STATE / ASSEMBLED</p>
-            <h2>THE MACHINE IS ONE SYSTEM. SO IS THE RACE.</h2>
-          </div>
-        </section>
-
-        <div className="product-story" id="capabilities">
-          {productStories.map((story, index) => {
-            const storyScene = sceneForStory(index);
-            const textSide = landingPoses[storyScene].textSide;
-            return (
-              <section
-                className={`story-section story-section--text-${textSide}`}
-                data-car-scene={storyScene}
-                aria-labelledby={`story-${index}-title`}
-                key={story.label}
-              >
-                <article className="story-card">
-                  <p className="section-kicker">{story.label}</p>
-                  <h2 id={`story-${index}-title`}>{story.title}</h2>
-                  <p>{story.body}</p>
-                  <ul>
-                    {story.bullets.map((bullet) => (
-                      <li key={bullet}>{bullet}</li>
-                    ))}
-                  </ul>
-                </article>
-              </section>
-            );
-          })}
-        </div>
-
-        <section className="landing-cta" data-car-scene="final-cta">
-          <div className="landing-cta__content">
-            <span className="landing-cta__index" aria-hidden="true">
-              08 / ENTER
-            </span>
-            <div className="landing-cta__copy">
-              <p className="section-kicker">{finalCtaContent.label}</p>
-              <h2>{finalCtaContent.title}</h2>
-              <p>{finalCtaContent.body}</p>
-              <div className="landing-actions">
-                <Link className="button button--primary" href="/app">
-                  {finalCtaContent.primaryCta} <span aria-hidden="true">↗</span>
-                </Link>
-                <a className="button button--secondary" href="#system">
-                  {finalCtaContent.secondaryCta}{" "}
-                  <span aria-hidden="true">↑</span>
-                </a>
-              </div>
-              <p className="landing-cta__note">{finalCtaContent.note}</p>
-            </div>
+        <section className="public-final" aria-labelledby="final-title">
+          <p className="public-eyebrow">{finalCtaContent.label}</p>
+          <h2 id="final-title">{finalCtaContent.title}</h2>
+          <p>{finalCtaContent.body}</p>
+          <div className="public-actions">
+            <Link
+              className="public-button public-button--primary"
+              href="/app/replays"
+            >
+              {finalCtaContent.primaryCta}
+              <span aria-hidden="true">↗</span>
+            </Link>
+            <Link className="public-button" href="/app/analytics">
+              {finalCtaContent.secondaryCta}
+              <span aria-hidden="true">→</span>
+            </Link>
           </div>
         </section>
       </main>
-
-      <footer className="landing-footer">
-        <Link className="wordmark wordmark--landing" href="/">
+      <footer className="public-footer">
+        <Link className="public-wordmark" href="/">
           DOWNFORCE
         </Link>
         <div>
           <p>{footerContent.primary}</p>
           <p>{footerContent.secondary}</p>
+          <div className="public-footer__links">
+            <a href="https://github.com/Rachit-2216/DOWNFORCE">
+              Source on GitHub ↗
+            </a>
+            <a href="https://github.com/Rachit-2216/DOWNFORCE#data-accuracy-and-attribution">
+              Data attribution ↗
+            </a>
+          </div>
         </div>
-        <Link href="/app">Workspace ↗</Link>
+        <a href="#public-hero">Back to top ↑</a>
       </footer>
     </div>
   );

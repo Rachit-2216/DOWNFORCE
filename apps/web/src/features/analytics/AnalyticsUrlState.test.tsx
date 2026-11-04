@@ -129,6 +129,70 @@ afterEach(() => {
 });
 
 describe("analytics URL state", () => {
+  it("starts with a meaningful available driver pairing and preserves explicit choices", async () => {
+    vi.spyOn(api, "getAnalyticsEntities").mockResolvedValue(
+      entityPage([
+        entity("sutil", "Adrian Sutil"),
+        entity("yoong", "Alex Yoong"),
+        entity("hamilton", "Lewis Hamilton"),
+        entity("max_verstappen", "Max Verstappen"),
+      ]),
+    );
+    const compare = vi
+      .spyOn(api, "compareAnalytics")
+      .mockImplementation((request) =>
+        Promise.resolve(
+          comparison(request.entity_a, request.entity_b, 2000, 2026),
+        ),
+      );
+    render(<CompareAnalytics />);
+    await waitFor(() =>
+      expect(compare).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          entity_a: "hamilton",
+          entity_b: "max_verstappen",
+        }),
+        expect.anything(),
+      ),
+    );
+    expect(screen.getByLabelText("A")).toHaveValue("hamilton");
+    expect(screen.getByLabelText("B")).toHaveValue("max_verstappen");
+  });
+
+  it("changes summary scope without relabelling the common-race head-to-head", async () => {
+    vi.spyOn(api, "getAnalyticsEntities").mockResolvedValue(entityPage());
+    const compare = vi
+      .spyOn(api, "compareAnalytics")
+      .mockImplementation((request) =>
+        Promise.resolve({
+          ...comparison(request.entity_a, request.entity_b, 2000, 2026),
+          mode: request.mode,
+          head_to_head: {
+            ...comparison(request.entity_a, request.entity_b, 2000, 2026)
+              .head_to_head,
+            teammate_races: 2,
+          },
+        }),
+      );
+    render(<CompareAnalytics />);
+    await screen.findByText(/finished ahead in 2 of 3/);
+    fireEvent.change(screen.getByLabelText("Summary scope"), {
+      target: { value: "all_selected_races" },
+    });
+    await waitFor(() =>
+      expect(compare).toHaveBeenLastCalledWith(
+        expect.objectContaining({ mode: "all_selected_races" }),
+        expect.anything(),
+      ),
+    );
+    expect(window.location.search).toContain("scope=all_selected_races");
+    expect(
+      screen
+        .getAllByText(/Head-to-head always uses comparable common races/)
+        .every((element) => element.textContent?.includes("common races")),
+    ).toBe(true);
+    expect(screen.getByText("Races as teammates")).toBeVisible();
+  });
   it("restores ranking filters from a deep link and follows popstate", async () => {
     const getRankings = vi.spyOn(api, "getAnalyticsRankings").mockResolvedValue(
       rankingPage([

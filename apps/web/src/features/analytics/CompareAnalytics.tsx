@@ -28,6 +28,7 @@ type ComparisonFilters = {
   b: string;
   start: number;
   end: number;
+  scope: "common_races" | "all_selected_races";
 };
 
 const defaultFilters: ComparisonFilters = {
@@ -36,6 +37,7 @@ const defaultFilters: ComparisonFilters = {
   b: "",
   start: 2000,
   end: 2026,
+  scope: "common_races",
 };
 
 function urlSeason(params: URLSearchParams, name: string, fallback: number) {
@@ -53,13 +55,22 @@ function filtersFromLocation(): ComparisonFilters {
     b: params.get("b") ?? "",
     start: urlSeason(params, "start_season", defaultFilters.start),
     end: urlSeason(params, "end_season", defaultFilters.end),
+    scope:
+      params.get("scope") === "all_selected_races"
+        ? "all_selected_races"
+        : "common_races",
   };
 }
 
 function filtersKey(filters: ComparisonFilters) {
-  return [filters.kind, filters.a, filters.b, filters.start, filters.end].join(
-    ":",
-  );
+  return [
+    filters.kind,
+    filters.a,
+    filters.b,
+    filters.start,
+    filters.end,
+    filters.scope,
+  ].join(":");
 }
 
 function writeFilters(filters: ComparisonFilters, mode: "push" | "replace") {
@@ -67,6 +78,7 @@ function writeFilters(filters: ComparisonFilters, mode: "push" | "replace") {
   url.searchParams.set("entity", filters.kind);
   url.searchParams.set("start_season", String(filters.start));
   url.searchParams.set("end_season", String(filters.end));
+  url.searchParams.set("scope", filters.scope);
   if (filters.a) url.searchParams.set("a", filters.a);
   else url.searchParams.delete("a");
   if (filters.b) url.searchParams.set("b", filters.b);
@@ -80,10 +92,19 @@ function resolveSelections(
 ) {
   const contains = (id: string) =>
     entities.some((entity) => entity.entity_id === id);
-  const a = contains(filters.a) ? filters.a : (entities[0]?.entity_id ?? "");
+  const preferred =
+    filters.kind === "driver"
+      ? ["hamilton", "max_verstappen"]
+      : ["ferrari", "mclaren"];
+  const a = contains(filters.a)
+    ? filters.a
+    : (preferred.find(contains) ?? entities[0]?.entity_id ?? "");
   let b = contains(filters.b) ? filters.b : "";
   if (!b)
-    b = entities.find((entity) => entity.entity_id !== a)?.entity_id ?? "";
+    b =
+      preferred.find((id) => id !== a && contains(id)) ??
+      entities.find((entity) => entity.entity_id !== a)?.entity_id ??
+      "";
   return { ...filters, a, b };
 }
 
@@ -94,7 +115,7 @@ export function CompareAnalytics() {
     kind: EntityKind;
     items: AnalyticsListItem[];
   } | null>(null);
-  const { kind, a, b, start, end } = filters;
+  const { kind, a, b, start, end, scope } = filters;
   const requestKey = filtersKey(filters);
   const [directory, setDirectory] = useState<{
     kind: EntityKind;
@@ -185,7 +206,7 @@ export function CompareAnalytics() {
         entity_type: kind,
         entity_a: a,
         entity_b: b,
-        mode: "common_races",
+        mode: scope,
         filters: { start_season: start, end_season: end },
       },
       { signal: controller.signal },
@@ -217,6 +238,7 @@ export function CompareAnalytics() {
     refresh,
     requestKey,
     start,
+    scope,
     validSelection,
   ]);
 
@@ -257,8 +279,8 @@ export function CompareAnalytics() {
         title="Head to head"
       >
         <p>
-          Compare only races both entities contested, with non-comparable driver
-          finishes excluded.
+          Choose the record you want to compare. Head-to-head always uses
+          comparable common races, with non-comparable driver finishes excluded.
         </p>
       </PageIntro>
       <section className="analytics-filterbar analytics-filterbar--compare">
@@ -331,6 +353,22 @@ export function CompareAnalytics() {
         >
           Run comparison
         </button>
+        <label>
+          <span>Summary scope</span>
+          <select
+            value={scope}
+            onChange={(event) =>
+              updateFilters({
+                scope: event.target.value as ComparisonFilters["scope"],
+              })
+            }
+          >
+            <option value="common_races">Races both contested</option>
+            <option value="all_selected_races">
+              All races in selected years
+            </option>
+          </select>
+        </label>
       </section>
       {error ? <EmptyState>{error}</EmptyState> : null}
       {data && summaryA && summaryB ? (
@@ -377,8 +415,24 @@ export function CompareAnalytics() {
                     },
                   ]
                 : []),
+              ...(kind === "driver" &&
+              typeof data.head_to_head.teammate_races === "number"
+                ? [
+                    {
+                      label: "Races as teammates",
+                      value: data.head_to_head.teammate_races,
+                    },
+                  ]
+                : []),
             ]}
           />
+          <p className="comparison-scope">
+            Summary:{" "}
+            {scope === "common_races"
+              ? "races both contested"
+              : "each entity’s races within the selected years"}
+            . Head-to-head always uses comparable common races.
+          </p>
           <p className="deterministic-summary">
             {String(data.entity_a.entity_name)}{" "}
             {kind === "driver" ? "finished ahead" : "scored more points"} in{" "}

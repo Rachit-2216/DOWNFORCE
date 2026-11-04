@@ -4,7 +4,7 @@
 
 import { Html, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useMemo, useRef, type RefObject } from "react";
 import {
   AmbientLight,
   Box3,
@@ -25,14 +25,15 @@ import {
 
 import {
   explosionOffsets,
+  heroScaleForViewport,
   landingPoses,
   semanticGroups,
   type CarScene,
   type SemanticGroup,
 } from "./car-motion";
+import { useDemandSnapshot } from "./use-demand-snapshot";
 
 const MODEL_URL = "/models/rb22-downforce-web.glb";
-const HERO_TURN_SECONDS = 12;
 
 type MaterialBaseline = {
   opacity: number;
@@ -53,6 +54,7 @@ type TransformBaseline = {
 
 type ModelState = {
   scene: Object3D;
+  reference: Object3D;
   center: Vector3;
   groups: Map<SemanticGroup, Object3D>;
   transforms: Map<SemanticGroup, TransformBaseline>;
@@ -128,11 +130,24 @@ function useSemanticModel(): ModelState {
     // predictable camera-space origin.
     scene.position.sub(center);
 
-    return { scene, center, groups, transforms, materials };
+    const reference = scene.clone(true);
+    cloneMaterials(reference).forEach((_, material) => {
+      material.opacity = 0.085;
+      material.transparent = true;
+      material.depthWrite = false;
+    });
+
+    return { scene, reference, center, groups, transforms, materials };
   }, [gltf.scene]);
 }
 
-function SceneLighting({ scene }: { scene: CarScene }) {
+function SceneLighting({
+  scene,
+  animate,
+}: {
+  scene: CarScene;
+  animate: boolean;
+}) {
   const ambient = useRef<AmbientLight>(null);
   const key = useRef<DirectionalLight>(null);
   const rim = useRef<DirectionalLight>(null);
@@ -148,7 +163,7 @@ function SceneLighting({ scene }: { scene: CarScene }) {
     const isSpotlight = scene.startsWith("spotlight-");
     const isStory = scene.startsWith("story-");
     const isCta = scene === "final-cta";
-    const damping = 1 - Math.exp(-delta * 3.1);
+    const damping = animate ? 1 - Math.exp(-delta * 3.1) : 1;
     if (ambient.current) {
       const target =
         mode === "under"
@@ -298,8 +313,21 @@ function SceneLighting({ scene }: { scene: CarScene }) {
   );
 }
 
-function RB22Model({ sceneState }: { sceneState: CarScene }) {
+function RB22Model({
+  sceneState,
+  transfer,
+  animate,
+  active,
+}: {
+  sceneState: CarScene;
+  transfer: RefObject<number>;
+  animate: boolean;
+  active: boolean;
+}) {
   const model = useSemanticModel();
+  // This subtree commits only after the asynchronous GLB has loaded. Request
+  // one fresh frame for imperative pose/camera changes, not an animation loop.
+  useDemandSnapshot(sceneState, active, animate);
   const rootRef = useRef<Object3D>(null);
   const cameraTarget = useRef(new Vector3());
   const scratchPosition = useRef(new Vector3());
@@ -307,16 +335,26 @@ function RB22Model({ sceneState }: { sceneState: CarScene }) {
   const scratchCenter = useRef(new Vector3());
   const scratchRight = useRef(new Vector3());
   const scratchQuaternion = useRef(new Quaternion());
+  const scratchFocusQuaternion = useRef(new Quaternion());
+  const scratchEuler = useRef(new Euler());
+  const scratchTransformedCenter = useRef(new Vector3());
 
-  useFrame(({ camera, clock, size }, delta) => {
+  useFrame(({ camera, size }, delta) => {
     const root = rootRef.current;
     if (!root) return;
 
     const pose = landingPoses[sceneState];
-    const damping = 1 - Math.exp(-delta * 3.25);
-    const tabletFactor = size.width < 1060 ? 0.76 : 1;
+    const damping = animate ? 1 - Math.exp(-delta * 3.25) : 1;
+    const tabletFactor = size.width < 600 ? 0.9 : 1;
     const rootX = pose.rootPosition[0] * tabletFactor;
-    const rootScale = pose.rootScale * (size.width < 1060 ? 0.86 : 1);
+    const rootScale =
+      sceneState === "hero"
+        ? MathUtils.lerp(
+            heroScaleForViewport(size.width, size.height),
+            landingPoses.reassemble.rootScale,
+            transfer.current,
+          )
+        : pose.rootScale * (size.width < 600 ? 0.9 : 1);
 
     scratchPosition.current.set(
       rootX,
@@ -330,23 +368,17 @@ function RB22Model({ sceneState }: { sceneState: CarScene }) {
         pose.horizontalOffset * tabletFactor,
       );
     }
-    if (sceneState === "hero") {
-      scratchPosition.current.y += Math.sin(clock.elapsedTime * 0.9) * 0.045;
-    }
     root.position.lerp(scratchPosition.current, damping);
     root.scale.lerp(
       scratchScale.current.set(rootScale, rootScale, rootScale),
       damping,
     );
 
-    const heroTurn =
-      sceneState === "hero"
-        ? (clock.elapsedTime * Math.PI * 2) / HERO_TURN_SECONDS
-        : 0;
+    const transferTurn = sceneState === "hero" ? transfer.current * -0.1 : 0;
     scratchQuaternion.current.setFromEuler(
-      new Euler(
+      scratchEuler.current.set(
         pose.rootRotation[0],
-        pose.rootRotation[1] + heroTurn,
+        pose.rootRotation[1] + transferTurn,
         pose.rootRotation[2],
       ),
     );
@@ -382,13 +414,13 @@ function RB22Model({ sceneState }: { sceneState: CarScene }) {
       if (!group || !baseline) return;
 
       const isFocus = pose.focus?.group === name;
-      const separated = pose.mode === "exploded" || pose.mode === "spotlight";
+      const separated = pose.mode === "exploded";
       const explosion = explosionOffsets[name];
       const targetPosition = scratchPosition.current
         .copy(baseline.position)
         .addScaledVector(
           scratchCenter.current.set(...explosion),
-          separated ? (pose.mode === "spotlight" ? 1.22 : 1) : 0,
+          separated ? 1 : 0,
         );
       const targetQuaternion = scratchQuaternion.current.copy(
         baseline.quaternion,
@@ -397,11 +429,13 @@ function RB22Model({ sceneState }: { sceneState: CarScene }) {
 
       if (isFocus && pose.focus) {
         targetQuaternion.multiply(
-          new Quaternion().setFromEuler(new Euler(...pose.focus.rotation)),
+          scratchFocusQuaternion.current.setFromEuler(
+            scratchEuler.current.set(...pose.focus.rotation),
+          ),
         );
         targetScale.multiplyScalar(pose.focus.scale);
-        const transformedCenter = baseline.localCenter
-          .clone()
+        const transformedCenter = scratchTransformedCenter.current
+          .copy(baseline.localCenter)
           .multiply(targetScale)
           .applyQuaternion(targetQuaternion);
         targetPosition
@@ -414,7 +448,7 @@ function RB22Model({ sceneState }: { sceneState: CarScene }) {
       group.quaternion.slerp(targetQuaternion, damping);
       group.scale.lerp(targetScale, damping);
 
-      const targetOpacity = pose.mode !== "spotlight" || isFocus ? 1 : 0.035;
+      const targetOpacity = pose.mode !== "spotlight" || isFocus ? 1 : 0;
       model.materials.get(name)?.forEach((materialBaseline, material) => {
         material.opacity = MathUtils.lerp(
           material.opacity,
@@ -457,6 +491,13 @@ function RB22Model({ sceneState }: { sceneState: CarScene }) {
       scale={initial.rootScale}
     >
       <primitive object={model.scene} />
+      <group
+        scale={0.8}
+        position={[0, -0.6, -0.7]}
+        visible={sceneState.startsWith("spotlight-")}
+      >
+        <primitive object={model.reference} />
+      </group>
     </group>
   );
 }
@@ -473,28 +514,37 @@ function ModelLoader() {
 export default function RB22Scene({
   active,
   scene,
+  transfer,
+  animate = true,
 }: {
   active: boolean;
   scene: CarScene;
+  transfer: RefObject<number>;
+  animate?: boolean;
 }) {
   return (
     <Canvas
       aria-hidden="true"
-      camera={{ position: [10.2, 3.65, 10.8], fov: 32, near: 0.1, far: 120 }}
+      camera={{ position: [0, 2.8, 10.8], fov: 36, near: 0.1, far: 120 }}
       dpr={[1, 1.5]}
       fallback={
         <img
-          className="landing-car-static"
+          className="machine-canvas-fallback"
           src="/images/rb22-static.png"
           alt=""
         />
       }
-      frameloop={active ? "always" : "never"}
+      frameloop={!active ? "never" : animate ? "always" : "demand"}
       gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
     >
-      <SceneLighting scene={scene} />
+      <SceneLighting scene={scene} animate={animate} />
       <Suspense fallback={<ModelLoader />}>
-        <RB22Model sceneState={scene} />
+        <RB22Model
+          sceneState={scene}
+          transfer={transfer}
+          animate={animate}
+          active={active}
+        />
       </Suspense>
     </Canvas>
   );

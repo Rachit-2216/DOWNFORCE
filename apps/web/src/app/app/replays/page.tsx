@@ -3,33 +3,35 @@ import { SessionBrowser } from "@/features/replay/SessionBrowser";
 
 export default function DetailedReplayRegistryPage() {
   return (
-    <div className="app-shell app-shell--registry">
-      <AppHeader context="Detailed replay / Frozen ML V1 corpus" />
+    <div className="app-shell app-shell--registry workspace-discovery">
+      <AppHeader context="Race workspace / Detailed library" />
       <main className="session-index" id="main-content">
         <section
           className="session-index__intro"
           aria-labelledby="workspace-title"
         >
-          <p className="eyebrow">13 detailed sessions / Canonical replay</p>
+          <p className="eyebrow">
+            Detailed race library / Three ways into a race
+          </p>
           <h1 id="workspace-title">Re-enter every decision.</h1>
           <p>
-            These telemetry-era races power deterministic replay, ML
-            intelligence and probabilistic strategy analysis. They are distinct
-            from the broader archive.
+            Follow the race that happened. Understand the estimates. Test the
+            decision that did not. Choose from the available detailed races; the
+            broader historical record lives in the archive.
           </p>
           <div
             className="session-index__stamp"
             aria-label="Workspace guarantees"
           >
-            <span>RaceState(t)</span>
-            <span>ML V1 frozen</span>
-            <span>No future leakage</span>
+            <span>Observed history</span>
+            <span>Model estimates</span>
+            <span>Simulated alternatives</span>
           </div>
         </section>
         <section aria-labelledby="available-sessions-title">
           <div className="session-index__section-head">
-            <h2 id="available-sessions-title">Detailed sessions</h2>
-            <span>Verified local datasets</span>
+            <h2 id="available-sessions-title">Choose your race</h2>
+            <span>One library. Your choice of workspace.</span>
           </div>
           <SessionBrowser />
         </section>

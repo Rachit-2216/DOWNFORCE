@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/client";
 import type { CatalogEvent, CatalogSeasonListResponse } from "@/lib/api/types";
 import { isVisitorEdition, RUN_LOCALLY_URL } from "@/lib/data-profile";
+import { OnlineTools } from "@/components/product/OnlineTools";
 
 type LoadState =
   | { kind: "loading" }
@@ -181,37 +182,60 @@ export function ExploreArchive() {
   return (
     <main className="explore-shell" id="main-content">
       <header className="explore-intro">
-        <p className="eyebrow">Historical F1 data platform / 2000–present</p>
-        <h1>Every race. Only the data that actually exists.</h1>
+        <p className="eyebrow">Your race workspace / Formula 1</p>
+        <h1>The race is only the beginning.</h1>
         <p>
-          Browse results, laps, pit stops, detailed timing and full DOWNFORCE
-          replays through one capability-aware archive.
+          Find the story in the evidence. Explore race history, compare the
+          patterns, then step inside a detailed race with replay, intelligence
+          and strategy tools.
         </p>
-        {isVisitorEdition() && (
-          <p className="coverage-note">
-            Curated visitor edition · Archive, analytics, detailed replays and
-            frozen intelligence from a read-only snapshot. Telemetry and the
-            full research environment run on your machine with locally acquired
-            datasets. <a href={RUN_LOCALLY_URL}>Run locally</a>.
-          </p>
-        )}
         <dl>
+          <div>
+            <dt>Seasons in the archive</dt>
+            <dd>{seasons?.total ?? "Loading"}</dd>
+          </div>
           <div>
             <dt>Completed races</dt>
             <dd>{seasons?.completed_event_count ?? "Loading"}</dd>
           </div>
           <div>
-            <dt>Latest verified</dt>
+            <dt>Latest completed race</dt>
             <dd>{seasons?.latest_completed_event_date ?? "Loading"}</dd>
           </div>
-          <div>
-            <dt>Detailed ML corpus</dt>
-            <dd>13 races / V1 frozen</dd>
-          </div>
         </dl>
+        <a className="archive-jump" href="#archive-filters">
+          Browse the archive <span aria-hidden="true">↓</span>
+        </a>
       </header>
 
-      <section className="explore-controls" aria-label="Archive filters">
+      <OnlineTools />
+
+      {isVisitorEdition() && (
+        <details className="archive-data-note">
+          <summary>About the published data</summary>
+          <p>
+            Curated visitor edition · These online tools use a read-only
+            published snapshot, not a live race feed. Coverage varies by race
+            and is shown in the archive. Telemetry research runs on your machine
+            with locally acquired datasets.{" "}
+            <a href={RUN_LOCALLY_URL}>Run locally</a>.
+          </p>
+        </details>
+      )}
+
+      <div className="archive-section-heading">
+        <div>
+          <p className="eyebrow">The historical record</p>
+          <h2>Find your race.</h2>
+        </div>
+        <p>Filter by season, event and the evidence you need.</p>
+      </div>
+      <section
+        className="explore-controls"
+        id="archive-filters"
+        aria-label="Archive filters"
+        tabIndex={-1}
+      >
         <label>
           <span>Search race, circuit, driver or team</span>
           <input
@@ -259,7 +283,11 @@ export function ExploreArchive() {
             onClick={() => selectSeason(null)}
           >
             <span>All</span>
-            <small>26+ seasons</small>
+            <small>
+              {seasons
+                ? `${seasons.total} ${seasons.total === 1 ? "season" : "seasons"}`
+                : "Every season"}
+            </small>
           </button>
           {seasons?.items.map((season) => (
             <button
@@ -335,7 +363,10 @@ export function ExploreArchive() {
                         <span className="event-list__identity">
                           <strong>{event.name}</strong>
                           <small>
-                            {event.circuit_name} / {event.event_date}
+                            {event.circuit_name} / {event.event_date} ·{" "}
+                            {event.status === "completed"
+                              ? "Completed"
+                              : "Scheduled in snapshot"}
                           </small>
                         </span>
                         <span

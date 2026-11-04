@@ -36,6 +36,18 @@ afterEach(() => {
 });
 
 describe("StrategyPanel", () => {
+  it("offers an explicit earliest valid driver-own lap preset", () => {
+    render(
+      <StrategyPanel
+        sessionId="session"
+        driver={driver}
+        cursorMs={5_840_332}
+        referenceLap={30}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Use lap 32" }));
+    expect(screen.getByLabelText("First lap on new tyres")).toHaveValue("32");
+  });
   it("rejects a new-tyre lap that has already started in the driver's own lap count", () => {
     render(
       <StrategyPanel

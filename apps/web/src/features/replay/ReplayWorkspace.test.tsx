@@ -56,7 +56,7 @@ function canonicalState() {
   };
 }
 
-function installCanonicalFetch(failFirstState = false) {
+function installCanonicalFetch(failFirstState = false, extended = false) {
   let stateRequests = 0;
   const fetcher = vi
     .spyOn(globalThis, "fetch")
@@ -88,8 +88,20 @@ function installCanonicalFetch(failFirstState = false) {
               team_name: "Mercedes",
               country_code: "GBR",
             },
+            ...(extended
+              ? [
+                  {
+                    driver_id: "driver-1",
+                    racing_number: 1,
+                    abbreviation: "VER",
+                    full_name: "Max Verstappen",
+                    team_name: "Red Bull",
+                    country_code: "NLD",
+                  },
+                ]
+              : []),
           ],
-          total: 1,
+          total: extended ? 2 : 1,
         });
       if (url.includes("/laps?"))
         return response({
@@ -114,10 +126,28 @@ function installCanonicalFetch(failFirstState = false) {
               deleted_reason: null,
               raw_track_status: null,
             },
+            ...(extended
+              ? [
+                  {
+                    driver_id: driverId,
+                    lap_number: 5,
+                    lap_start_time_ms: 4000,
+                    lap_end_time_ms: 5000,
+                    lap_time_ms: 1000,
+                  },
+                  {
+                    driver_id: "driver-1",
+                    lap_number: 5,
+                    lap_start_time_ms: 4800,
+                    lap_end_time_ms: 6000,
+                    lap_time_ms: 1200,
+                  },
+                ]
+              : []),
           ],
           offset: 0,
           limit: 1_000,
-          total: 1,
+          total: extended ? 3 : 1,
         });
       if (url.includes("/timeline?"))
         return response({
@@ -145,7 +175,20 @@ function installCanonicalFetch(failFirstState = false) {
             { error: { message: "temporary state failure" } },
             500,
           );
-        return response(canonicalState());
+        const state = canonicalState();
+        const rawTime = new URL(url).searchParams.get("time_ms");
+        state.session_time_ms = rawTime === null ? 1000 : Number(rawTime);
+        if (extended)
+          state.drivers.push({
+            ...state.drivers[0],
+            driver_id: "driver-1",
+            racing_number: 1,
+            abbreviation: "VER",
+            full_name: "Max Verstappen",
+            team_name: "Red Bull",
+            position: 2,
+          });
+        return response(state);
       }
       if (url.endsWith(`/api/v1/sessions/${sessionId}`))
         return response({
@@ -215,6 +258,54 @@ describe("replay workspace integration", () => {
     cleanup();
     vi.restoreAllMocks();
     window.history.replaceState(null, "", "/");
+  });
+
+  it("shares driver and bounded completed-lap context across workspace modes", async () => {
+    window.history.replaceState(null, "", "/?mode=intelligence");
+    const { fetcher } = installCanonicalFetch(false, true);
+    render(<ReplayWorkspace sessionId={sessionId} />);
+    const driver = await screen.findByLabelText("Selected driver");
+    await waitFor(() => expect(driver).toHaveValue(driverId));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jump to completed lap 5" }),
+    );
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("5000"),
+    );
+    fireEvent.change(driver, { target: { value: "driver-1" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Strategy$/ }));
+    expect(screen.getByLabelText("Selected driver")).toHaveValue("driver-1");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("5000");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jump to completed lap 5" }),
+    );
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("6000"),
+    );
+    expect(
+      fetcher.mock.calls.some(([url]) =>
+        String(url).includes("/state?time_ms=6000"),
+      ),
+    ).toBe(true);
+    window.history.replaceState(
+      null,
+      "",
+      "/?mode=intelligence&driver=44&t=3000",
+    );
+    fireEvent(window, new PopStateEvent("popstate"));
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("3000"),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Selected driver")).toHaveValue(driverId),
+    );
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(([url]) =>
+          String(url).includes("/intelligence?time_ms=3000"),
+        ),
+      ).toBe(true),
+    );
   });
 
   it("keeps replay usable when canonical track, weather and control data are unavailable", async () => {

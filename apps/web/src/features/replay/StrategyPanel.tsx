@@ -148,6 +148,11 @@ export function StrategyPanel({
           SIMULATED · seeded · {driver ? driverLabel(driver) : "no driver"}
         </span>
       </header>
+      <p className="tool-context-note">
+        A paired simulation: stay out, or stop for a new compound. Set the first
+        driver-own lap on new tyres, then compare the alternatives at the
+        current cursor.
+      </p>
       <div className="strategy-console">
         <div className="strategy-controls">
           <label>
@@ -164,16 +169,29 @@ export function StrategyPanel({
               scenario assumption.
             </small>
           </label>
-          <label>
-            First lap on new tyres (driver&apos;s own lap)
-            <input
-              aria-label="First lap on new tyres"
-              inputMode="numeric"
-              value={pitLap}
-              placeholder={driver ? `lap ${driver.laps_completed + 2}+` : "lap"}
-              onChange={(event) => setPitLap(event.target.value)}
-            />
-          </label>
+          <div className="strategy-stop-control">
+            <label>
+              First lap on new tyres (driver&apos;s own lap)
+              <input
+                aria-label="First lap on new tyres"
+                inputMode="numeric"
+                value={pitLap}
+                placeholder={
+                  driver ? `lap ${driver.laps_completed + 2}+` : "lap"
+                }
+                onChange={(event) => setPitLap(event.target.value)}
+              />
+            </label>
+            {driver && (
+              <button
+                type="button"
+                className="strategy-preset"
+                onClick={() => setPitLap(String(driver.laps_completed + 2))}
+              >
+                Use lap {driver.laps_completed + 2}
+              </button>
+            )}
+          </div>
           <label>
             Fit compound
             <select
@@ -247,13 +265,17 @@ export function StrategyPanel({
 
 function StrategyResults({ data }: { data: StrategyComparisonResponse }) {
   if (!data.ranking || !data.strategies) return null;
+  const preferred = data.strategies.find(
+    (item) =>
+      item.strategy.strategy_id === data.ranking?.recommended_strategy_id,
+  )?.strategy.label;
   return (
     <div className="strategy-results">
       <div className="strategy-verdict">
         <span>SIMULATED · {data.ranking.status}</span>
         <strong>
           {data.ranking.recommended_strategy_id
-            ? `Preferred under current assumptions: ${data.ranking.recommended_strategy_id}`
+            ? `Preferred under current assumptions: ${preferred ?? data.ranking.recommended_strategy_id}`
             : "No robust recommendation"}
         </strong>
         <p>{data.ranking.explanation}</p>
@@ -261,7 +283,9 @@ function StrategyResults({ data }: { data: StrategyComparisonResponse }) {
           Lead wins{" "}
           {percentage(data.ranking.probability_leading_beats_runner_up)} of
           paired paths · pit sensitivity{" "}
-          {data.ranking.pit_loss_sensitive ? "failed" : "passed"}
+          {data.ranking.pit_loss_sensitive
+            ? "fragile — the preference changes with plausible pit loss"
+            : "stable within the tested pit-loss range"}
           {data.ranking.long_horizon_limited
             ? " · local tyre horizon exceeded"
             : ""}
@@ -283,7 +307,7 @@ function StrategyResults({ data }: { data: StrategyComparisonResponse }) {
                 <dd>{percentage(outcome.probability_top_3)}</dd>
               </div>
               <div>
-                <dt>Time P10–P90</dt>
+                <dt>P10–P90 time spread</dt>
                 <dd>
                   {(
                     (outcome.race_time_ms.p90 - outcome.race_time_ms.p10) /
@@ -302,6 +326,30 @@ function StrategyResults({ data }: { data: StrategyComparisonResponse }) {
         future stops · no future incidents or traffic model · pit loss stressed
         at its marginal 90% bounds
       </p>
+      <details className="model-details">
+        <summary>Scenario and model details</summary>
+        <p>
+          Model {data.model_version ?? "unavailable"} · simulation{" "}
+          {data.simulation_version} · seed {data.seed ?? 2216}
+        </p>
+        <ul>
+          {data.assumptions.map((assumption, index) => (
+            <li key={`${index}-${assumption}`}>
+              {assumption.replaceAll("_", " ")}
+            </li>
+          ))}
+        </ul>
+        <div className="strategy-time-details">
+          {data.strategies.map(({ strategy, outcome }) => (
+            <p key={strategy.strategy_id}>
+              <strong>{strategy.label}</strong> · simulated race-clock P10 /
+              median / P90: {(outcome.race_time_ms.p10 / 1000).toFixed(1)} /{" "}
+              {(outcome.race_time_ms.median / 1000).toFixed(1)} /{" "}
+              {(outcome.race_time_ms.p90 / 1000).toFixed(1)} seconds.
+            </p>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }

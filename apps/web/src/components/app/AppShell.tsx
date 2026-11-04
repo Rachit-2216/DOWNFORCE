@@ -4,8 +4,8 @@ import { AppHeader } from "./AppHeader";
 
 export function AppShell() {
   return (
-    <div className="app-shell app-shell--registry">
-      <AppHeader context="Historical data platform / Explore" />
+    <div className="app-shell app-shell--registry workspace-discovery">
+      <AppHeader context="Race workspace / Archive" />
       <ExploreArchive />
     </div>
   );

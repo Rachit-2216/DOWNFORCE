@@ -82,6 +82,10 @@ export function IntelligencePanel({
         </div>
         <span>Observed / predicted · {name}</span>
       </header>
+      <p className="tool-context-note">
+        Predicted, not observed. Estimates follow the selected driver and race
+        cursor; intervals describe uncertainty, not guaranteed outcomes.
+      </p>
       {visibleKind === "idle" && (
         <div className="panel-empty">
           Select a driver to inspect historical intelligence.

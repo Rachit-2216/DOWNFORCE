@@ -1,14 +1,10 @@
 export const heroContent = {
-  eyebrow: "RACE REPLAY / PREDICTIVE INTELLIGENCE / STRATEGY SIMULATION",
+  eyebrow: "FORMULA 1 / RACE INTELLIGENCE",
   title: "DOWNFORCE",
-  descriptor: "READ THE RACE.\nMODEL THE NEXT MOVE.",
-  body: "A causal Formula 1 analysis platform for historical replay, machine-learning intelligence and probabilistic strategy simulation.",
-  primaryCta: "ENTER WORKSPACE",
-  secondaryCta: "EXPLORE THE SYSTEM",
-  proof:
-    "13-RACE ML V1 • 14,422 CANONICAL LAPS • 9,734 PACE / TYRE SAMPLES • MONTE CARLO STRATEGY ENGINE",
-  microcopy:
-    "Reconstruct what happened. Estimate what comes next. Test what could have changed.",
+  descriptor: "Read the race.\nRethink the next move.",
+  body: "Explore Formula 1 history, replay the race as it unfolded, and compare strategy with the evidence available at the time.",
+  primaryCta: "Try a race",
+  secondaryCta: "Explore history",
 } as const;
 
 export const componentSpotlights = [
@@ -70,67 +66,59 @@ export const componentSpotlights = [
   },
 ] as const;
 
-export const productStories = [
-  {
-    label: "01 / PLATFORM",
-    title: "RECONSTRUCT THE RACE\nBEFORE YOU PREDICT IT.",
-    body: "DOWNFORCE rebuilds race state at an exact historical moment — position, stint, tyre, pit, weather and race-control context — before any model is allowed to reason about what comes next.",
-    bullets: ["CAUSAL STATE", "TEMPORAL REPLAY", "NO HINDSIGHT"],
-  },
-  {
-    label: "02 / REPLAY",
-    title: "SEE ONLY WHAT\nWAS KNOWABLE THEN.",
-    body: "Move through a Grand Prix at any point in time and inspect the race as it existed at that cursor, not through information learned after the fact.",
-    bullets: ["TIMING", "TRACK POSITION", "STINT CONTEXT"],
-  },
-  {
-    label: "03 / INTELLIGENCE",
-    title: "ESTIMATE THE NEXT LAP.\nKEEP THE UNCERTAINTY.",
-    body: "Model representative pace, tyre residual behavior and effective pit loss while carrying calibrated uncertainty into every supported estimate.",
-    bullets: ["PACE", "TYRES", "PIT LOSS"],
-  },
-  {
-    label: "04 / SIMULATION",
-    title: "RUN THOUSANDS OF\nPLAUSIBLE FUTURES.",
-    body: "Candidate strategies move through a multi-driver Monte Carlo engine where pace, tyre and pit uncertainty follow every simulated path.",
-    bullets: ["MONTE CARLO", "MULTI-DRIVER", "DISTRIBUTIONS"],
-  },
-  {
-    label: "05 / STRATEGY",
-    title: "COMPARE THE DECISION.\nNOT THE HINDSIGHT.",
-    body: "Pit timing, compounds and alternatives are compared under shared stochastic conditions. If the evidence cannot separate them, DOWNFORCE returns no clear preference.",
-    bullets: ["PIT WINDOWS", "ROBUSTNESS", "SENSITIVITY"],
-  },
-  {
-    label: "06 / COUNTERFACTUALS",
-    title: "CHANGE ONE CALL.\nREBUILD THE POSSIBILITY.",
-    body: "Replace a historical decision at its original causal boundary and simulate from there. The observed result enters only afterward for comparison.",
-    bullets: [
-      "ALTERNATIVE STRATEGY",
-      "CAUSAL BOUNDARY",
-      "OBSERVED ≠ SIMULATED",
-    ],
-  },
-  {
-    label: "07 / ENGINEERING",
-    title: "WHEN THE MODEL\nDOESN’T KNOW,\nIT SAYS SO.",
-    body: "Explicit contracts, calibrated uncertainty and structured unavailable states keep unsupported assumptions from masquerading as precision.",
-    bullets: ["FAIL CLOSED", "VERSIONED MODELS", "EXPLICIT LIMITS"],
-  },
-] as const;
-
 export const finalCtaContent = {
-  label: "ENTER DOWNFORCE",
-  title: "REPLAY THE RACE.\nMODEL THE NEXT MOVE.",
-  body: "Historical replay, predictive intelligence and probabilistic strategy analysis inside one engineering system.",
-  primaryCta: "ENTER WORKSPACE",
-  secondaryCta: "EXPLORE THE PLATFORM",
+  label: "03 / YOUR NEXT MOVE",
+  title: "The race is history.\nThe questions are yours.",
+  body: "Start with a replay, or find the patterns across seasons. The workspace is ready in your browser.",
+  primaryCta: "Choose a replay",
+  secondaryCta: "Explore the analytics",
   note: "REPLAY / INTELLIGENCE / STRATEGY / COUNTERFACTUALS",
 } as const;
 
 export const footerContent = {
-  primary:
-    "© 2026 DOWNFORCE. Built as a motorsport analysis and simulation product experience.",
+  primary: "© 2026 DOWNFORCE. An independent motorsport analysis project.",
   secondary:
-    "Formula 1, team names, and related marks remain the property of their respective owners. Final legal wording may be revised.",
+    "Unofficial and not affiliated with Formula 1, the FIA or any team. Names, marks and car imagery belong to their respective owners.",
 } as const;
+
+export const publicFeatures = [
+  {
+    kind: "archive",
+    label: "RACE ARCHIVE",
+    title: "A season is more than its final standings.",
+    body: "Explore the published race archive, from a season overview to the drivers and results of an individual Grand Prix.",
+    details: ["Seasons and race results", "Driver and constructor context"],
+    href: "/app",
+    action: "Browse the archive",
+  },
+  {
+    kind: "analytics",
+    label: "ANALYTICS",
+    title: "Find the pattern behind the result.",
+    body: "Move beyond a single race. Compare the available season, driver and constructor records with the source and coverage in view.",
+    details: ["Season comparisons", "Published historical coverage"],
+    href: "/app/analytics",
+    action: "Open analytics",
+  },
+  {
+    kind: "replay",
+    label: "HISTORICAL REPLAY / OBSERVED",
+    title: "See only what was knowable then.",
+    body: "Move the race cursor and inspect timing, position, tyres and stint context without borrowing information from the future.",
+    details: ["Lap-by-lap race state", "Timing, tyres and pit context"],
+    href: "/app/replays",
+    action: "Find a race to replay",
+  },
+  {
+    kind: "strategy",
+    label: "INTELLIGENCE + STRATEGY",
+    title: "Compare the decision. Not the hindsight.",
+    body: "In a supported race context, inspect model estimates and test pit timing and compound alternatives. Keep observed, predicted and simulated evidence separate.",
+    details: [
+      "Pace, tyre and pit-loss estimates",
+      "Strategy distributions, not guarantees",
+    ],
+    href: "/app/replays",
+    action: "Explore a race context",
+  },
+] as const;

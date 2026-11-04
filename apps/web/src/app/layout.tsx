@@ -13,6 +13,10 @@ import "./replay.css";
 import "./art-direction.css";
 import "./catalog.css";
 import "./analytics.css";
+import "./public-experience.css";
+import "./online-tools.css";
+import "./workspace-experience.css";
+import "./workbench-experience.css";
 
 export const metadata: Metadata = {
   title: "DOWNFORCE — Formula 1 race intelligence",
