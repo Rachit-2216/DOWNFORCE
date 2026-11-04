@@ -13,7 +13,7 @@
       "functions": {
         "apps/api/index.py": {
           "includeFiles": "{product-data/**,packages/downforce_core/src/**}",
-          "excludeFiles": "{apps/web/**,Assets/**,assets/**,data/**,**/node_modules/**,**/tests/**,**/__tests__/**,**/test_*.py,**/*.test.py,**/graphify-out/**,.git/**,.github/**,.agents/**,.codex/**,.aws/**,.downforce/**,artifacts/**,docs/**,scripts/**,deployment/**,output/**,test-results/**,.playwright-cli/**,.venv/**,**/__pycache__/**,**/*.md}"
+          "excludeFiles": "{apps/web/**,**/tests/**,.*/**,**/graphify-out/**,Assets/**,assets/**,data/**,artifacts/**,docs/**,scripts/**,deployment/**,output/**,test-results/**,coverage/**,**/__pycache__/**,**/*.md,**/node_modules/**}"
         }
       }
     }

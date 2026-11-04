@@ -35,6 +35,10 @@ describe("production deployment", () => {
     expect(
       config.services.backend.functions["apps/api/index.py"].excludeFiles,
     ).toContain("**/graphify-out/**");
+    expect(
+      config.services.backend.functions["apps/api/index.py"].excludeFiles
+        .length,
+    ).toBeLessThanOrEqual(256);
   });
 
   it.each([
