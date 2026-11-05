@@ -12,7 +12,58 @@ import {
 } from "./client";
 
 describe("API client", () => {
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+  it("bounds a hung request and aborts its transport", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn<typeof fetch>(() => new Promise(() => {}));
+    const pending = getCatalogSeasons({ fetcher, timeoutMs: 25 });
+    const rejected = expect(pending).rejects.toThrow(/took too long/i);
+    await vi.advanceTimersByTimeAsync(26);
+    await rejected;
+    expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("bounds response decoding as well as receiving response headers", async () => {
+    vi.useFakeTimers();
+    const body = new Response("{}");
+    vi.spyOn(body, "json").mockImplementation(() => new Promise(() => {}));
+    const pending = getCatalogSeasons({
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(body),
+      timeoutMs: 25,
+    });
+    const rejected = expect(pending).rejects.toThrow(/took too long/i);
+    await vi.advanceTimersByTimeAsync(26);
+    await rejected;
+  });
+  it("keeps caller cancellation distinct from a timeout even if fetch ignores abort", async () => {
+    const controller = new AbortController();
+    const pending = getCatalogSeasons({
+      fetcher: vi.fn<typeof fetch>(() => new Promise(() => {})),
+      signal: controller.signal,
+    });
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    controller.abort();
+    await rejected;
+  });
+  it.each([403, 404, 422, 503])(
+    "preserves HTTP %s without silently retrying",
+    async (status) => {
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ detail: "Request unavailable" }), {
+          status,
+        }),
+      );
+      await expect(getCatalogSeasons({ fetcher })).rejects.toMatchObject({
+        status,
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
   it("validates and returns the health contract", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

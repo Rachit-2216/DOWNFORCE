@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 
-import { ApiClientError, getEntityAnalytics } from "@/lib/api/client";
+import { getEntityAnalytics } from "@/lib/api/client";
 import type { EntityAnalyticsResponse } from "@/lib/api/types";
 import { isVisitorEdition } from "@/lib/data-profile";
+import { useAsyncResource } from "@/lib/use-async-resource";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import {
   AnalyticsPage,
   BarChart,
   CoverageNote,
-  EmptyState,
   MetricStrip,
   PageIntro,
   formatMetric,
@@ -29,41 +30,43 @@ function entityName(data: EntityAnalyticsResponse): string {
 }
 
 export function EntityProfile({ kind, id }: { kind: EntityKind; id: string }) {
-  const [data, setData] = useState<EntityAnalyticsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    void getEntityAnalytics(
-      kind,
-      id,
-      { limit: 50 },
-      { signal: controller.signal },
-    )
-      .then(setData)
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setError(
-            reason instanceof ApiClientError
-              ? reason.message
-              : "Profile could not be loaded.",
-          );
-      });
-    return () => controller.abort();
-  }, [id, kind]);
+  const { data, error, retry, updateData, requestKey } = useAsyncResource(
+    `entity:${kind}:${id}`,
+    (signal) => getEntityAnalytics(kind, id, { limit: 50 }, { signal }),
+  );
+  const [loadingMoreKey, setLoadingMoreKey] = useState<
+    typeof requestKey | null
+  >(null);
+  const [pageError, setPageError] = useState<{
+    key: typeof requestKey;
+    message: string;
+  } | null>(null);
+  const loadingMore = loadingMoreKey === requestKey;
 
   if (error)
     return (
       <AnalyticsPage>
         <PageIntro eyebrow={`${kind} / ${id}`} title="Record unavailable" />
-        <EmptyState>{error}</EmptyState>
+        <AsyncState
+          kind="error"
+          title="Profile could not be loaded"
+          detail={error}
+          onRetry={retry}
+          href={`/app/analytics/${kind}`}
+          linkLabel={`Browse ${kind}`}
+        />
       </AnalyticsPage>
     );
   if (!data)
     return (
       <AnalyticsPage>
         <PageIntro eyebrow={`${kind} / ${id}`} title="Loading record" />
-        <EmptyState>Resolving the canonical entity…</EmptyState>
+        <AsyncState
+          kind="loading"
+          title="Resolving the canonical entity…"
+          href={`/app/analytics/${kind}`}
+          linkLabel={`Browse ${kind}`}
+        />
       </AnalyticsPage>
     );
   const name = entityName(data);
@@ -76,31 +79,30 @@ export function EntityProfile({ kind, id }: { kind: EntityKind; id: string }) {
   async function loadMoreRaces() {
     if (!data || loadingMore || data.races.items.length >= data.races.total)
       return;
-    setLoadingMore(true);
+    setLoadingMoreKey(requestKey);
+    setPageError(null);
     try {
       const next = await getEntityAnalytics(kind, id, {
         offset: data.races.items.length,
         limit: 50,
       });
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              races: {
-                ...next.races,
-                items: [...current.races.items, ...next.races.items],
-              },
-            }
-          : current,
-      );
+      updateData((current) => ({
+        ...current,
+        races: {
+          ...next.races,
+          items: [...current.races.items, ...next.races.items],
+        },
+      }));
     } catch (reason: unknown) {
-      setError(
-        reason instanceof ApiClientError
-          ? reason.message
-          : "More race history could not be loaded.",
-      );
+      setPageError({
+        key: requestKey,
+        message:
+          reason instanceof Error
+            ? reason.message
+            : "More race history could not be loaded.",
+      });
     } finally {
-      setLoadingMore(false);
+      setLoadingMoreKey((current) => (current === requestKey ? null : current));
     }
   }
   return (
@@ -243,6 +245,14 @@ export function EntityProfile({ kind, id }: { kind: EntityKind; id: string }) {
             </Fragment>
           ))}
         </div>
+        {pageError?.key === requestKey ? (
+          <AsyncState
+            kind="error"
+            title="More history could not be loaded"
+            detail={pageError.message}
+            onRetry={() => void loadMoreRaces()}
+          />
+        ) : null}
         {data.races.total > data.races.items.length ? (
           <button
             className="analytics-load-more"

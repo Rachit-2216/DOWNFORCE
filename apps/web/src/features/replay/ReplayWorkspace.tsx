@@ -15,7 +15,6 @@ import {
 import type {
   Driver,
   Lap,
-  RaceState,
   SessionResponse,
   TimelineEvent,
   TrackPosition,
@@ -31,8 +30,12 @@ import { TimingTower } from "./TimingTower";
 import { TrackMap } from "./TrackMap";
 import { clamp, formatClock, longestDriverTrace } from "./replay-utils";
 import { useReplayController } from "./useReplayController";
+import { useRaceSnapshot } from "./useRaceSnapshot";
 import { telemetryContextLink } from "@/features/telemetry/url-state";
 import { isVisitorEdition } from "@/lib/data-profile";
+import { AppHeader } from "@/components/app/AppHeader";
+import { AsyncState } from "@/components/ui/AsyncState";
+import { useAsyncResource } from "@/lib/use-async-resource";
 
 type StaticReplayData = {
   session: SessionResponse;
@@ -82,11 +85,16 @@ function initialReplaySubview(): ReplaySubview {
     : "track";
 }
 
-function pushReplayLocation(mode: ReplayMode, view: ReplaySubview) {
+function pushReplayLocation(
+  mode: ReplayMode,
+  view: ReplaySubview,
+  driverId?: string | null,
+) {
   const url = new URL(window.location.href);
   url.searchParams.set("mode", mode);
   if (mode === "replay") url.searchParams.set("view", view);
   else url.searchParams.delete("view");
+  if (driverId) url.searchParams.set("driver", driverId);
   window.history.pushState(null, "", url);
 }
 
@@ -128,6 +136,7 @@ function describeError(error: unknown): string {
 
 export function ReplayWorkspace({ sessionId }: { sessionId: string }) {
   const [loadState, setLoadState] = useState<LoadState>({ kind: "loading" });
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
@@ -136,50 +145,8 @@ export function ReplayWorkspace({ sessionId }: { sessionId: string }) {
       loadAllLaps(sessionId, controller.signal),
       loadAllTimeline(sessionId, controller.signal),
     ])
-      .then(async ([session, drivers, laps, timeline]) => {
-        const referenceLap = laps.find(
-          (lap) =>
-            lap.lap_start_time_ms !== null && lap.lap_end_time_ms !== null,
-        );
-        let trace: TrackPosition[] = [];
-        let traceError: string | null = null;
-        const trackAvailability =
-          session.tables.track_positions?.availability ?? "unsupported";
-        if (
-          trackAvailability === "available" &&
-          referenceLap?.lap_start_time_ms !== null &&
-          referenceLap?.lap_end_time_ms !== null &&
-          referenceLap
-        ) {
-          try {
-            const response = await getTrackPositions(
-              sessionId,
-              {
-                driverId: referenceLap.driver_id,
-                fromMs: referenceLap.lap_start_time_ms,
-                toMs: referenceLap.lap_end_time_ms,
-                limit: 5_000,
-              },
-              { signal: controller.signal },
-            );
-            trace = response.items;
-            if (trace.length < 2) {
-              const fallback = await getTrackPositions(
-                sessionId,
-                {
-                  fromMs: referenceLap.lap_start_time_ms,
-                  toMs: referenceLap.lap_end_time_ms,
-                  limit: 5_000,
-                },
-                { signal: controller.signal },
-              );
-              trace = longestDriverTrace(fallback.items);
-            }
-          } catch (error: unknown) {
-            if (controller.signal.aborted) throw error;
-            traceError = describeError(error);
-          }
-        }
+      .then(([session, drivers, laps, timeline]) => {
+        if (controller.signal.aborted) return;
         setLoadState({
           kind: "ready",
           data: {
@@ -187,8 +154,8 @@ export function ReplayWorkspace({ sessionId }: { sessionId: string }) {
             drivers: drivers.items,
             laps,
             timeline,
-            trace,
-            traceError,
+            trace: [],
+            traceError: null,
           },
         });
       })
@@ -197,10 +164,18 @@ export function ReplayWorkspace({ sessionId }: { sessionId: string }) {
           setLoadState({ kind: "error", message: describeError(error) });
       });
     return () => controller.abort();
-  }, [sessionId]);
+  }, [sessionId, loadAttempt]);
   if (loadState.kind === "loading") return <ReplayLoading />;
   if (loadState.kind === "error")
-    return <ReplayFailure message={loadState.message} />;
+    return (
+      <ReplayFailure
+        message={loadState.message}
+        onRetry={() => {
+          setLoadState({ kind: "loading" });
+          setLoadAttempt((value) => value + 1);
+        }}
+      />
+    );
   return (
     <ReplayOperations
       data={loadState.data}
@@ -211,43 +186,47 @@ export function ReplayWorkspace({ sessionId }: { sessionId: string }) {
 
 function ReplayLoading() {
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
-      <main className="replay-gate" id="main-content" role="status">
-        <span className="replay-gate__code">DF / LOAD</span>
-        <div className="replay-gate__mark" aria-hidden="true" />
-        <h1>Building canonical replay</h1>
-        <p>
-          Session metadata, timeline, laps and circuit trace are being verified.
-        </p>
+    <div className="replay-shell">
+      <AppHeader context="Opening race workspace" activeSection="replay" />
+      <main className="replay-gate" id="main-content">
+        <p className="eyebrow">THE RACE WORKBENCH</p>
+        <h1>Opening your race.</h1>
+        <AsyncState
+          kind="loading"
+          title="Loading race timing"
+          detail="Retrieving the published session, drivers and lap history. You can choose another race at any time."
+          href="/app/replays"
+          linkLabel="Choose another race"
+        />
       </main>
-    </>
+    </div>
   );
 }
-function ReplayFailure({ message }: { message: string }) {
+function ReplayFailure({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
+    <div className="replay-shell">
+      <AppHeader context="Race workspace" activeSection="replay" />
       <main
         className="replay-gate replay-gate--error"
         id="main-content"
         role="alert"
       >
-        <span className="replay-gate__code">DF / ERROR</span>
         <h1>Replay unavailable</h1>
         <p>{message}</p>
         <div className="replay-gate__actions">
-          <button type="button" onClick={() => window.location.reload()}>
+          <button type="button" onClick={onRetry}>
             Retry replay
           </button>
           <Link href="/app">Return to session registry</Link>
         </div>
       </main>
-    </>
+    </div>
   );
 }
 
@@ -293,11 +272,18 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
       : (contextLap?.lap_end_time_ms ?? raceStartMs);
   const controller = useReplayController(minimumMs, maximumMs, initialMs);
   const { seek: seekCursor, setPlaying: setCursorPlaying } = controller;
-  const [raceState, setRaceState] = useState<RaceState | null>(null);
-  const [stateError, setStateError] = useState<string | null>(null);
   const [stateRefreshKey, setStateRefreshKey] = useState(0);
+  const snapshot = useRaceSnapshot(
+    data.session.session_id,
+    controller.authoritativeCursorMs,
+    controller.isPlaying,
+    stateRefreshKey,
+  );
+  const raceState = snapshot.data;
+  const [lapError, setLapError] = useState<string | null>(null);
+  const stateError = snapshot.error ?? lapError;
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(
-    contextDriver?.driver_id ?? null,
+    contextDriver?.driver_id ?? data.drivers[0]?.driver_id ?? null,
   );
   const [positions, setPositions] = useState<TrackPosition[]>([]);
   const [positionError, setPositionError] = useState<string | null>(null);
@@ -306,8 +292,17 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
   >(null);
   const [mode, setMode] = useState<ReplayMode>(initialReplayMode);
   const [subview, setSubview] = useState<ReplaySubview>(initialReplaySubview);
-  const stateSequence = useRef(0);
   const lapSequence = useRef(0);
+  const latestVisualCursor = useRef(controller.cursorMs);
+  useEffect(() => {
+    latestVisualCursor.current = controller.cursorMs;
+  }, [controller.cursorMs]);
+  useEffect(
+    () => () => {
+      lapSequence.current++;
+    },
+    [],
+  );
   const positionSequence = useRef(0);
   const trackAvailability =
     data.session.tables.track_positions?.availability ?? "unsupported";
@@ -315,6 +310,35 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
     data.session.tables.weather?.availability ?? "unsupported";
   const raceControlAvailability =
     data.session.tables.race_control?.availability ?? "unsupported";
+  const referenceTraceLap = data.laps.find(
+    (lap) => lap.lap_start_time_ms !== null && lap.lap_end_time_ms !== null,
+  );
+  const traceResource = useAsyncResource<TrackPosition[]>(
+    `trace:${data.session.session_id}:${trackAvailability}:${referenceTraceLap?.driver_id}:${referenceTraceLap?.lap_start_time_ms}:${referenceTraceLap?.lap_end_time_ms}`,
+    async (signal) => {
+      if (
+        trackAvailability !== "available" ||
+        referenceTraceLap?.lap_start_time_ms == null ||
+        referenceTraceLap.lap_end_time_ms == null
+      )
+        return [];
+      const range = {
+        fromMs: referenceTraceLap.lap_start_time_ms,
+        toMs: referenceTraceLap.lap_end_time_ms,
+        limit: 5000,
+      };
+      const response = await getTrackPositions(
+        data.session.session_id,
+        { ...range, driverId: referenceTraceLap.driver_id },
+        { signal },
+      );
+      if (response.items.length >= 2) return response.items;
+      const fallback = await getTrackPositions(data.session.session_id, range, {
+        signal,
+      });
+      return longestDriverTrace(fallback.items);
+    },
+  );
   const maximumLap = useMemo(
     () =>
       data.laps.reduce((maximum, lap) => Math.max(maximum, lap.lap_number), 0),
@@ -323,6 +347,12 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
   const positionBucket = Math.floor(controller.authoritativeCursorMs / 1_000);
   const stateLoading =
     raceState?.session_time_ms !== Math.round(controller.authoritativeCursorMs);
+  const visibleState =
+    raceState &&
+    raceState.session_time_ms <= Math.round(controller.cursorMs) &&
+    (controller.isPlaying || !stateLoading)
+      ? raceState
+      : null;
   const positionsLoading =
     trackAvailability === "available" &&
     loadedPositionBucket !== positionBucket;
@@ -345,37 +375,6 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [data.drivers, seekCursor, setCursorPlaying, minimumMs, maximumMs]);
-
-  useEffect(() => {
-    const request = ++stateSequence.current;
-    const abort = new AbortController();
-    void getRaceState(
-      data.session.session_id,
-      { timeMs: controller.authoritativeCursorMs },
-      { signal: abort.signal },
-    )
-      .then((state) => {
-        if (request !== stateSequence.current) return;
-        setRaceState(state);
-        setStateError(null);
-        setSelectedDriverId(
-          (selected) =>
-            selected ??
-            state.drivers.find((driver) => driver.position === 1)?.driver_id ??
-            state.drivers[0]?.driver_id ??
-            null,
-        );
-      })
-      .catch((error: unknown) => {
-        if (!abort.signal.aborted && request === stateSequence.current)
-          setStateError(describeError(error));
-      });
-    return () => abort.abort();
-  }, [
-    controller.authoritativeCursorMs,
-    data.session.session_id,
-    stateRefreshKey,
-  ]);
 
   useEffect(() => {
     if (trackAvailability !== "available") {
@@ -423,15 +422,23 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
   const seekToLap = useCallback(
     (lap: number) => {
       const request = ++lapSequence.current;
+      const startingCursor = latestVisualCursor.current;
+      setLapError(null);
       controller.setPlaying(false);
       void getRaceState(data.session.session_id, { lap, phase: "end" })
         .then((state) => {
-          if (request === lapSequence.current)
+          if (
+            request === lapSequence.current &&
+            latestVisualCursor.current === startingCursor
+          )
             controller.seek(state.session_time_ms);
         })
         .catch((error: unknown) => {
-          if (request === lapSequence.current)
-            setStateError(describeError(error));
+          if (
+            request === lapSequence.current &&
+            latestVisualCursor.current === startingCursor
+          )
+            setLapError(describeError(error));
         });
     },
     [controller, data.session.session_id],
@@ -469,7 +476,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
   }, [controller, maximumLap, raceState?.reference_lap, seekToLap]);
 
   const selectedDriver =
-    raceState?.drivers.find(
+    visibleState?.drivers.find(
       (driver) => driver.driver_id === selectedDriverId,
     ) ?? null;
   const eventName = data.session.session.event_name ?? "Historical race";
@@ -492,21 +499,32 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
       lap.lap_end_time_ms >= minimumMs &&
       lap.lap_end_time_ms <= maximumMs,
   );
+  const chooseMode = (next: ReplayMode) => {
+    if (next === "intelligence" || next === "strategy")
+      controller.setPlaying(false);
+    setMode(next);
+    pushReplayLocation(next, subview, selectedDriverId);
+  };
   return (
     <div className="replay-shell">
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
-      <header className="replay-topbar">
-        <Link className="wordmark" href="/">
-          DOWNFORCE
-        </Link>
-        <nav aria-label="Replay breadcrumb">
-          <Link href="/app">Archive</Link>
-          <Link href="/app/analytics">Analytics</Link>
+      <AppHeader
+        context={eventName}
+        activeSection={
+          mode === "intelligence" || mode === "strategy" ? mode : "replay"
+        }
+        raceContext={{
+          sessionId: data.session.session_id,
+          driverId: selectedDriverId ?? undefined,
+          timeMs: controller.authoritativeCursorMs,
+        }}
+        onToolChange={chooseMode}
+      />
+      <main id="main-content">
+        <div className="race-breadcrumb">
           <Link href="/app/replays">Race library</Link>
           <span>/</span>
-          <strong>{eventName}</strong>
+          <span>{circuitName}</span>
+          <strong>{data.session.session.data_quality ?? "unknown"} data</strong>
           {!isVisitorEdition() && (
             <Link
               href={telemetryContextLink(
@@ -527,14 +545,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
               Telemetry Lab
             </Link>
           )}
-        </nav>
-        <div className="replay-topbar__status">
-          <i aria-hidden="true" />
-          <span>{data.session.session.data_quality ?? "unknown"} data</span>
-          <b>{raceState?.track_status ?? "loading"}</b>
         </div>
-      </header>
-      <main id="main-content">
         <div className="replay-heading">
           <div>
             <p className="eyebrow">
@@ -567,8 +578,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
               className={mode === item.value ? "is-active" : ""}
               aria-pressed={mode === item.value}
               onClick={() => {
-                setMode(item.value);
-                pushReplayLocation(item.value, subview);
+                chooseMode(item.value);
               }}
               key={item.value}
             >
@@ -622,10 +632,12 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
           controller={controller}
           minimumMs={minimumMs}
           maximumMs={maximumMs}
-          referenceLap={raceState?.reference_lap ?? null}
+          referenceLap={visibleState?.reference_lap ?? null}
           maximumLap={maximumLap}
-          trackStatus={raceState?.track_status ?? "loading"}
-          onLapSeek={seekToLap}
+          trackStatus={visibleState?.track_status ?? "loading"}
+          onLapSeek={(lap) => {
+            if (visibleState) seekToLap(lap);
+          }}
           isStateLoading={stateLoading}
         />
         {stateError && (
@@ -635,13 +647,20 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
             <button
               type="button"
               onClick={() => {
-                setStateError(null);
+                setLapError(null);
                 setStateRefreshKey((key) => key + 1);
               }}
             >
               Retry
             </button>
           </div>
+        )}
+        {!visibleState && !stateError && mode !== "overview" && (
+          <AsyncState
+            kind="loading"
+            title={`Loading race state at ${formatClock(controller.authoritativeCursorMs)}`}
+            detail="Timing and estimates will appear when this moment is reconciled."
+          />
         )}
         {mode === "overview" && (
           <section className="detailed-overview">
@@ -673,7 +692,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
             </dl>
           </section>
         )}
-        {mode === "replay" && (
+        {mode === "replay" && visibleState && (
           <>
             <nav className="detailed-subview-nav" aria-label="Replay views">
               {REPLAY_SUBVIEWS.map((item) => (
@@ -698,17 +717,26 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
               {subview === "track" && (
                 <>
                   <TrackMap
-                    trace={data.trace}
+                    trace={traceResource.data ?? []}
                     positions={positions}
                     cursorMs={controller.authoritativeCursorMs}
-                    drivers={raceState?.drivers ?? []}
+                    drivers={visibleState.drivers}
                     selectedDriverId={selectedDriverId}
-                    loading={positionsLoading}
+                    loading={positionsLoading || traceResource.loading}
                     availability={trackAvailability}
-                    errorMessage={data.traceError ?? positionError}
+                    errorMessage={traceResource.error ?? positionError}
                   />
+                  {traceResource.error ? (
+                    <AsyncState
+                      kind="error"
+                      title="The circuit trace could not be loaded"
+                      detail="Timing and the other race tools remain available."
+                      onRetry={traceResource.retry}
+                      retryLabel="Retry circuit trace"
+                    />
+                  ) : null}
                   <TimingTower
-                    drivers={raceState?.drivers ?? []}
+                    drivers={visibleState.drivers}
                     selectedDriverId={selectedDriverId}
                     onSelect={chooseDriver}
                   />
@@ -717,7 +745,7 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
               {subview === "timing" && (
                 <>
                   <TimingTower
-                    drivers={raceState?.drivers ?? []}
+                    drivers={visibleState.drivers}
                     selectedDriverId={selectedDriverId}
                     onSelect={chooseDriver}
                   />
@@ -730,11 +758,11 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
               {subview === "conditions" && (
                 <>
                   <WeatherPanel
-                    weather={raceState?.weather ?? null}
+                    weather={visibleState.weather}
                     availability={weatherAvailability}
                   />
                   <RaceControlPanel
-                    messages={raceState?.recent_race_control ?? []}
+                    messages={visibleState.recent_race_control}
                     availability={raceControlAvailability}
                   />
                 </>
@@ -755,29 +783,29 @@ function ReplayOperations({ data }: { data: StaticReplayData }) {
             )}
           </>
         )}
-        {mode === "drivers" && (
+        {mode === "drivers" && visibleState && (
           <section className="detailed-focus detailed-focus--drivers">
             <TimingTower
-              drivers={raceState?.drivers ?? []}
+              drivers={visibleState.drivers}
               selectedDriverId={selectedDriverId}
               onSelect={chooseDriver}
             />
             <DriverInspector driver={selectedDriver} laps={data.laps} />
           </section>
         )}
-        {mode === "intelligence" && (
+        {mode === "intelligence" && visibleState && (
           <IntelligencePanel
             sessionId={data.session.session_id}
             driver={selectedDriver}
             cursorMs={controller.authoritativeCursorMs}
           />
         )}
-        {mode === "strategy" && (
+        {mode === "strategy" && visibleState && (
           <StrategyPanel
             sessionId={data.session.session_id}
             driver={selectedDriver}
             cursorMs={controller.authoritativeCursorMs}
-            referenceLap={raceState?.reference_lap ?? null}
+            referenceLap={visibleState.reference_lap}
           />
         )}
         <footer className="replay-footer">

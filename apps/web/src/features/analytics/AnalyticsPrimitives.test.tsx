@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -79,5 +79,9 @@ describe("analytics primitives", () => {
       />,
     );
     expect(screen.getByText(/2 samples.*latest P1 at lap 2/)).toBeVisible();
+    fireEvent.change(screen.getByRole("slider", { name: "Inspect lap" }), {
+      target: { value: "1" },
+    });
+    expect(screen.getByText(/recorded P3 at lap 1/)).toBeVisible();
   });
 });

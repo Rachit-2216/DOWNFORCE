@@ -17,6 +17,7 @@ import "./public-experience.css";
 import "./online-tools.css";
 import "./workspace-experience.css";
 import "./workbench-experience.css";
+import "./product-workbench.css";
 
 export const metadata: Metadata = {
   title: "DOWNFORCE — Formula 1 race intelligence",

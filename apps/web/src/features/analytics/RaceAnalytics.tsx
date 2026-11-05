@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-
-import { ApiClientError, getRaceAnalytics } from "@/lib/api/client";
-import type { RaceAnalyticsResponse } from "@/lib/api/types";
+import { getRaceAnalytics } from "@/lib/api/client";
+import { useAsyncResource } from "@/lib/use-async-resource";
+import { AsyncState } from "@/components/ui/AsyncState";
 import { isVisitorEdition } from "@/lib/data-profile";
 
 import {
   AnalyticsPage,
   CoverageNote,
-  EmptyState,
   LineChart,
   MetricStrip,
   PageIntro,
@@ -18,34 +16,32 @@ import {
 } from "./AnalyticsPrimitives";
 
 export function RaceAnalytics({ sessionId }: { sessionId: string }) {
-  const [data, setData] = useState<RaceAnalyticsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    void getRaceAnalytics(sessionId, { signal: controller.signal })
-      .then(setData)
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setError(
-            reason instanceof ApiClientError
-              ? reason.message
-              : "Race analytics could not be loaded.",
-          );
-      });
-    return () => controller.abort();
-  }, [sessionId]);
+  const { data, error, retry } = useAsyncResource(
+    `race:${sessionId}`,
+    (signal) => getRaceAnalytics(sessionId, { signal }),
+  );
   if (error)
     return (
       <AnalyticsPage>
         <PageIntro eyebrow="Race analytics" title="Unavailable" />
-        <EmptyState>{error}</EmptyState>
+        <AsyncState
+          kind="error"
+          title="Race analytics could not be loaded"
+          detail={error}
+          onRetry={retry}
+          href="/app"
+        />
       </AnalyticsPage>
     );
   if (!data)
     return (
       <AnalyticsPage>
         <PageIntro eyebrow="Race analytics" title="Loading classification" />
-        <EmptyState>Resolving race evidence…</EmptyState>
+        <AsyncState
+          kind="loading"
+          title="Resolving race evidence…"
+          href="/app"
+        />
       </AnalyticsPage>
     );
   const winner =
@@ -68,7 +64,11 @@ export function RaceAnalytics({ sessionId }: { sessionId: string }) {
           <Link href={`/app/events/${String(data.event.event_id)}`}>
             Open race overview
           </Link>
-          <Link href={`/app/replay/${sessionId}`}>Open replay</Link>
+          <Link
+            href={`/app/events/${String(data.event.event_id)}/workspace?mode=replay`}
+          >
+            Open replay
+          </Link>
           {!isVisitorEdition() && Number(data.event.season) >= 2018 && (
             <Link
               href={`/app/telemetry?race_session_id=${encodeURIComponent(sessionId)}`}

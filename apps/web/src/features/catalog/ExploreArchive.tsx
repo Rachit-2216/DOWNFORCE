@@ -63,7 +63,7 @@ export function ExploreArchive() {
   >(undefined);
   const [query, setQuery] = useState("");
   const [capability, setCapability] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("completed");
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [requestKey, setRequestKey] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -74,6 +74,7 @@ export function ExploreArchive() {
     const controller = new AbortController();
     void getCatalogSeasons({ signal: controller.signal })
       .then((response) => {
+        if (controller.signal.aborted) return;
         setSeasons(response);
         setSelectedSeason(seasonFromUrl(response));
       })
@@ -113,7 +114,10 @@ export function ExploreArchive() {
           { signal: controller.signal },
         )
           .then((response) => {
-            if (generation === requestGeneration.current)
+            if (
+              !controller.signal.aborted &&
+              generation === requestGeneration.current
+            )
               setState({
                 kind: "ready",
                 events: response.items,
@@ -207,8 +211,6 @@ export function ExploreArchive() {
           Browse the archive <span aria-hidden="true">↓</span>
         </a>
       </header>
-
-      <OnlineTools />
 
       {isVisitorEdition() && (
         <details className="archive-data-note">
@@ -407,6 +409,7 @@ export function ExploreArchive() {
           )}
         </section>
       </div>
+      <OnlineTools />
     </main>
   );
 }

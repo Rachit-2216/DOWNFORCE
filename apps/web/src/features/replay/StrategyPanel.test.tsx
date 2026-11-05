@@ -36,6 +36,25 @@ afterEach(() => {
 });
 
 describe("StrategyPanel", () => {
+  it("shows a guided setup and preserves an exit when no driver context is available", () => {
+    render(
+      <StrategyPanel
+        sessionId="session"
+        driver={null}
+        cursorMs={0}
+        referenceLap={null}
+      />,
+    );
+    expect(
+      screen.getByRole("list", { name: "Strategy setup" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Choose a detailed race" }),
+    ).toHaveAttribute("href", "/app/replays?mode=strategy");
+    expect(
+      screen.getByRole("button", { name: "Compare strategy" }),
+    ).toBeDisabled();
+  });
   it("offers an explicit earliest valid driver-own lap preset", () => {
     render(
       <StrategyPanel

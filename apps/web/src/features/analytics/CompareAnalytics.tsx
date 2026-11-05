@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import {
   ApiClientError,
@@ -130,6 +131,7 @@ export function CompareAnalytics() {
     message: string;
   } | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [directoryAttempt, setDirectoryAttempt] = useState(0);
 
   useEffect(() => {
     const updateFromUrl = () => {
@@ -192,7 +194,7 @@ export function CompareAnalytics() {
           });
       });
     return () => controller.abort();
-  }, [kind]);
+  }, [kind, directoryAttempt]);
 
   const entities = directory?.kind === kind ? directory.items : [];
   const directoryReady = directory?.kind === kind;
@@ -370,7 +372,18 @@ export function CompareAnalytics() {
           </select>
         </label>
       </section>
-      {error ? <EmptyState>{error}</EmptyState> : null}
+      {error ? (
+        <AsyncState
+          kind="error"
+          title="Comparison could not be loaded"
+          detail={error}
+          onRetry={() => {
+            setRequestError(null);
+            if (!directoryReady) setDirectoryAttempt((value) => value + 1);
+            else setRefresh((value) => value + 1);
+          }}
+        />
+      ) : null}
       {data && summaryA && summaryB ? (
         <>
           <section className="versus-header">
@@ -450,6 +463,18 @@ export function CompareAnalytics() {
             </p>
           ) : null}
         </>
+      ) : error ? null : !directoryReady || validSelection ? (
+        <AsyncState
+          kind="loading"
+          title={
+            !directoryReady
+              ? "Loading comparison choices"
+              : "Comparing the race record…"
+          }
+          detail="Your filters stay available while the record is resolved."
+          href="/app/analytics"
+          linkLabel="Explore another analytics view"
+        />
       ) : (
         <EmptyState>
           Select two entities and run a deterministic comparison.

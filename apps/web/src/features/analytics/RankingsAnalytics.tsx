@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import { ApiClientError, getAnalyticsRankings } from "@/lib/api/client";
 import type { RankingAnalyticsResponse } from "@/lib/api/types";
@@ -9,7 +10,6 @@ import type { RankingAnalyticsResponse } from "@/lib/api/types";
 import {
   AnalyticsPage,
   CoverageNote,
-  EmptyState,
   PageIntro,
   formatMetric,
 } from "./AnalyticsPrimitives";
@@ -98,6 +98,7 @@ export function RankingsAnalytics() {
     message: string;
   } | null>(null);
   const [loadingMoreKey, setLoadingMoreKey] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const updateFromUrl = () => setFilters(filtersFromLocation());
@@ -137,7 +138,7 @@ export function RankingsAnalytics() {
           });
       });
     return () => controller.abort();
-  }, [end, kind, metric, minimum, requestKey, start]);
+  }, [end, kind, metric, minimum, requestKey, start, attempt]);
 
   const data = page?.key === requestKey ? page.response : null;
   const error = requestError?.key === requestKey ? requestError.message : null;
@@ -274,7 +275,17 @@ export function RankingsAnalytics() {
           />
         </label>
       </section>
-      {error ? <EmptyState>{error}</EmptyState> : null}
+      {error ? (
+        <AsyncState
+          kind="error"
+          title="Rankings could not be loaded"
+          detail={error}
+          onRetry={() => {
+            setRequestError(null);
+            setAttempt((value) => value + 1);
+          }}
+        />
+      ) : null}
       {data ? (
         <section className="analytics-section analytics-table-section ranking-table">
           <header>
@@ -335,9 +346,14 @@ export function RankingsAnalytics() {
             </p>
           ) : null}
         </section>
-      ) : (
-        <EmptyState>Building ranking…</EmptyState>
-      )}
+      ) : !error ? (
+        <AsyncState
+          kind="loading"
+          title="Building ranking…"
+          href="/app/analytics"
+          linkLabel="Explore another analytics view"
+        />
+      ) : null}
     </AnalyticsPage>
   );
 }

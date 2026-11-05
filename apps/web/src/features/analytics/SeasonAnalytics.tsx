@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiClientError, getSeasonAnalytics } from "@/lib/api/client";
-import type { SeasonAnalyticsResponse } from "@/lib/api/types";
+import { getSeasonAnalytics } from "@/lib/api/client";
+import { useAsyncResource } from "@/lib/use-async-resource";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import {
   AnalyticsPage,
   CoverageNote,
-  EmptyState,
   LineChart,
   MetricStrip,
   PageIntro,
@@ -34,24 +34,10 @@ function viewFromLocation(): SeasonView {
 }
 
 export function SeasonAnalytics({ year }: { year: number }) {
-  const [data, setData] = useState<SeasonAnalyticsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, retry } = useAsyncResource(`season:${year}`, (signal) =>
+    getSeasonAnalytics(year, { signal }),
+  );
   const [view, setView] = useState<SeasonView>("overview");
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void getSeasonAnalytics(year, { signal: controller.signal })
-      .then(setData)
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setError(
-            reason instanceof ApiClientError
-              ? reason.message
-              : "Season analytics could not be loaded.",
-          );
-      });
-    return () => controller.abort();
-  }, [year]);
 
   useEffect(() => {
     const updateFromUrl = () => setView(viewFromLocation());
@@ -72,14 +58,26 @@ export function SeasonAnalytics({ year }: { year: number }) {
     return (
       <AnalyticsPage>
         <PageIntro eyebrow="Season analytics" title={String(year)} />
-        <EmptyState>{error}</EmptyState>
+        <AsyncState
+          kind="error"
+          title="Season record could not be loaded"
+          detail={error}
+          onRetry={retry}
+          href="/app/analytics"
+          linkLabel="Choose another season"
+        />
       </AnalyticsPage>
     );
   if (!data)
     return (
       <AnalyticsPage>
         <PageIntro eyebrow="Season analytics" title={String(year)} />
-        <EmptyState>Building the season record…</EmptyState>
+        <AsyncState
+          kind="loading"
+          title="Building the season record…"
+          href="/app/analytics"
+          linkLabel="Choose another season"
+        />
       </AnalyticsPage>
     );
 
@@ -122,6 +120,32 @@ export function SeasonAnalytics({ year }: { year: number }) {
               { label: "Pit stops", value: data.summary.pit_stops },
             ]}
           />
+          <section className="analytics-section">
+            <header>
+              <div>
+                <p className="eyebrow">
+                  Championship trajectory / Grand Prix points
+                </p>
+                <h2>The race for points</h2>
+              </div>
+              <button
+                type="button"
+                className="analytics-load-more"
+                onClick={() => chooseView("trends")}
+              >
+                All championship trends →
+              </button>
+            </header>
+            <LineChart
+              label="Leading drivers’ recorded race points by round"
+              series={data.driver_points_progression
+                .slice(0, 5)
+                .map((driver) => ({
+                  name: driver.entity_name,
+                  points: driver.points,
+                }))}
+            />
+          </section>
           <section className="analytics-section">
             <header>
               <p className="eyebrow">Descriptive competitiveness</p>

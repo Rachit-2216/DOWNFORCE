@@ -35,6 +35,7 @@ export type ApiRequestOptions = {
   baseUrl?: string;
   signal?: AbortSignal;
   fetcher?: typeof fetch;
+  timeoutMs?: number;
 };
 
 export class ApiClientError extends Error {
@@ -45,6 +46,45 @@ export class ApiClientError extends Error {
   ) {
     super(message, options);
     this.name = "ApiClientError";
+  }
+}
+
+async function withinDeadline<T>(
+  options: ApiRequestOptions,
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const caller = options.signal;
+  if (caller?.aborted)
+    throw caller.reason ?? new DOMException("Cancelled", "AbortError");
+  const controller = new AbortController();
+  let interrupt!: (reason: unknown) => void;
+  const interrupted = new Promise<never>((_, reject) => {
+    interrupt = reject;
+  });
+  const cancel = () => {
+    const reason: unknown =
+      caller?.reason ?? new DOMException("Cancelled", "AbortError");
+    interrupt(reason);
+    controller.abort(reason);
+  };
+  caller?.addEventListener("abort", cancel, { once: true });
+  const duration = options.timeoutMs ?? 20_000;
+  const timer = setTimeout(
+    () => {
+      const error = new ApiClientError(
+        "This request took too long. Please try again.",
+        408,
+      );
+      interrupt(error);
+      controller.abort(error);
+    },
+    Number.isFinite(duration) ? Math.max(1, duration) : 20_000,
+  );
+  try {
+    return await Promise.race([operation(controller.signal), interrupted]);
+  } finally {
+    clearTimeout(timer);
+    caller?.removeEventListener("abort", cancel);
   }
 }
 
@@ -83,8 +123,16 @@ function isHealthResponse(value: unknown): value is HealthResponse {
   );
 }
 
-export async function getHealth(
+export function getHealth(
   options: ApiRequestOptions = {},
+): Promise<HealthResponse> {
+  return withinDeadline(options, (signal) =>
+    getHealthNow({ ...options, signal }),
+  );
+}
+
+async function getHealthNow(
+  options: ApiRequestOptions,
 ): Promise<HealthResponse> {
   const fetcher = options.fetcher ?? fetch;
   const baseUrl = options.baseUrl ?? resolveApiBaseUrl();
@@ -97,7 +145,7 @@ export async function getHealth(
     });
   } catch (error: unknown) {
     throw new ApiClientError(
-      `Unable to reach the DOWNFORCE API at ${baseUrl}. Start the backend and verify NEXT_PUBLIC_API_URL.`,
+      "The race service could not be reached. Check your connection and try again.",
       undefined,
       { cause: error },
     );
@@ -121,7 +169,21 @@ export async function getHealth(
   return payload;
 }
 
-async function requestJson<T>(
+function requestJson<T>(
+  path: string,
+  options: ApiRequestOptions & { method?: "GET" | "POST"; body?: unknown } = {},
+): Promise<T> {
+  return withinDeadline(
+    {
+      ...options,
+      timeoutMs:
+        options.timeoutMs ?? (options.method === "POST" ? 60_000 : 20_000),
+    },
+    (signal) => requestJsonNow<T>(path, { ...options, signal }),
+  );
+}
+
+async function requestJsonNow<T>(
   path: string,
   options: ApiRequestOptions & { method?: "GET" | "POST"; body?: unknown } = {},
 ): Promise<T> {
@@ -147,7 +209,7 @@ async function requestJson<T>(
       throw error;
     }
     throw new ApiClientError(
-      `Unable to reach the DOWNFORCE API at ${baseUrl}.`,
+      "The race service could not be reached. Check your connection and try again.",
       undefined,
       { cause: error },
     );

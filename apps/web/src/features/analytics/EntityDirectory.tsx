@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { ApiClientError, getAnalyticsEntities } from "@/lib/api/client";
-import type { AnalyticsCoverage, AnalyticsListItem } from "@/lib/api/types";
+import { getAnalyticsEntities } from "@/lib/api/client";
+import { useAsyncResource } from "@/lib/use-async-resource";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import {
   AnalyticsPage,
@@ -18,48 +19,25 @@ type EntityKind = "drivers" | "constructors" | "circuits";
 
 export function EntityDirectory({ kind }: { kind: EntityKind }) {
   const [search, setSearch] = useState("");
-  const [items, setItems] = useState<AnalyticsListItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [coverage, setCoverage] = useState<AnalyticsCoverage | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(
-      () => {
-        setLoading(true);
-        setError(null);
-        void getAnalyticsEntities(
-          kind,
-          { search: search.trim() || undefined, limit: 100 },
-          { signal: controller.signal },
-        )
-          .then((response) => {
-            setItems(response.items);
-            setTotal(response.total);
-            setCoverage(response.coverage);
-          })
-          .catch((reason: unknown) => {
-            if (!controller.signal.aborted)
-              setError(
-                reason instanceof ApiClientError
-                  ? reason.message
-                  : "Analytics could not be loaded.",
-              );
-          })
-          .finally(() => {
-            if (!controller.signal.aborted) setLoading(false);
-          });
-      },
-      search ? 160 : 0,
+  const { data, error, loading, retry, updateData, requestKey } =
+    useAsyncResource(`directory:${kind}:${search.trim()}`, (signal) =>
+      getAnalyticsEntities(
+        kind,
+        { search: search.trim() || undefined, limit: 100 },
+        { signal },
+      ),
     );
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [kind, search]);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const coverage = data?.coverage;
+  const [loadingMoreKey, setLoadingMoreKey] = useState<
+    typeof requestKey | null
+  >(null);
+  const [pageError, setPageError] = useState<{
+    key: typeof requestKey;
+    message: string;
+  } | null>(null);
+  const loadingMore = loadingMoreKey === requestKey;
 
   const singular =
     kind === "drivers"
@@ -69,25 +47,28 @@ export function EntityDirectory({ kind }: { kind: EntityKind }) {
         : "circuit";
   async function loadMore() {
     if (loadingMore || items.length >= total) return;
-    setLoadingMore(true);
-    setError(null);
+    setLoadingMoreKey(requestKey);
+    setPageError(null);
     try {
       const response = await getAnalyticsEntities(kind, {
         search: search.trim() || undefined,
         offset: items.length,
         limit: 100,
       });
-      setItems((current) => [...current, ...response.items]);
-      setTotal(response.total);
-      setCoverage(response.coverage);
+      updateData((current) => ({
+        ...response,
+        items: [...current.items, ...response.items],
+      }));
     } catch (reason: unknown) {
-      setError(
-        reason instanceof ApiClientError
-          ? reason.message
-          : `More ${kind} could not be loaded.`,
-      );
+      setPageError({
+        key: requestKey,
+        message:
+          reason instanceof Error
+            ? reason.message
+            : `More ${kind} could not be loaded.`,
+      });
     } finally {
-      setLoadingMore(false);
+      setLoadingMoreKey((current) => (current === requestKey ? null : current));
     }
   }
   return (
@@ -113,8 +94,25 @@ export function EntityDirectory({ kind }: { kind: EntityKind }) {
         </label>
       </section>
       <section className="entity-register" aria-live="polite">
-        {loading ? <EmptyState>Loading {kind}…</EmptyState> : null}
-        {error ? <EmptyState>{error}</EmptyState> : null}
+        {loading ? (
+          <AsyncState kind="loading" title={`Loading ${kind}…`} />
+        ) : null}
+        {error ? (
+          <AsyncState
+            kind="error"
+            title="The register could not be loaded"
+            detail={error}
+            onRetry={retry}
+          />
+        ) : null}
+        {pageError?.key === requestKey ? (
+          <AsyncState
+            kind="error"
+            title="More records could not be loaded"
+            detail={pageError.message}
+            onRetry={() => void loadMore()}
+          />
+        ) : null}
         {!loading && !error && !items.length ? (
           <EmptyState>No matching {kind}.</EmptyState>
         ) : null}

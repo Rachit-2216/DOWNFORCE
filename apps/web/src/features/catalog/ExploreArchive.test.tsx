@@ -1,4 +1,10 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ExploreArchive } from "./ExploreArchive";
 
@@ -8,10 +14,10 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
-it("offers real shared race workspaces before archive filters without nesting main landmarks", async () => {
+it("prioritizes completed archive records and filters before featured tools", async () => {
   const sessionId =
     "session-2024-event-formula-1-hungarian-grand-prix-2024-sha256-cdc7f18370f678e135dd423e4794e6c76b2a318c08c5b7cf80f158e32ed61f10-type-race";
-  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+  const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = String(input);
     const body = url.includes("catalog/seasons")
       ? {
@@ -59,7 +65,7 @@ it("offers real shared race workspaces before archive filters without nesting ma
   );
   const filters = screen.getByRole("region", { name: "Archive filters" });
   expect(
-    tools.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING,
+    filters.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "Browse the archive" }),
@@ -68,4 +74,14 @@ it("offers real shared race workspaces before archive filters without nesting ma
   expect(screen.getByText("515")).toBeInTheDocument();
   expect(screen.getByText("27")).toBeInTheDocument();
   expect(screen.getByText("2026-08-23")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Event status" })).toHaveValue(
+    "completed",
+  );
+  await waitFor(() =>
+    expect(
+      fetcher.mock.calls.some(([input]) =>
+        String(input).includes("status=completed"),
+      ),
+    ).toBe(true),
+  );
 });

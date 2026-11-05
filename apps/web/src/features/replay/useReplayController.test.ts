@@ -4,6 +4,35 @@ import { describe, expect, it, vi } from "vitest";
 import { useReplayController } from "./useReplayController";
 
 describe("global replay controller", () => {
+  it.each(["set", "toggle"])(
+    "reconciles the exact paused cursor via %s",
+    (method) => {
+      const frames: FrameRequestCallback[] = [];
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        vi.fn((callback: FrameRequestCallback) => {
+          frames.push(callback);
+          return frames.length;
+        }),
+      );
+      vi.stubGlobal("cancelAnimationFrame", vi.fn());
+      const now = vi.spyOn(performance, "now").mockReturnValue(0);
+      const { result } = renderHook(() => useReplayController(0, 1000, 100));
+      act(() => result.current.setPlaying(true));
+      act(() => frames[0]!(120));
+      expect(result.current.cursorMs).toBe(220);
+      expect(result.current.authoritativeCursorMs).toBe(100);
+      act(() =>
+        method === "set"
+          ? result.current.setPlaying(false)
+          : result.current.togglePlaying(),
+      );
+      expect(result.current.authoritativeCursorMs).toBe(220);
+      expect(result.current.isPlaying).toBe(false);
+      now.mockRestore();
+      vi.unstubAllGlobals();
+    },
+  );
   it("clamps seek, speed and initial cursor to declared bounds", () => {
     const { result } = renderHook(() => useReplayController(100, 1_000, 50));
     expect(result.current.cursorMs).toBe(100);

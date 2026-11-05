@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import { ApiClientError, compareStrategies } from "@/lib/api/client";
 import type {
@@ -153,6 +154,46 @@ export function StrategyPanel({
         driver-own lap on new tyres, then compare the alternatives at the
         current cursor.
       </p>
+      <ol className="strategy-steps" aria-label="Strategy setup">
+        <li data-ready={Boolean(driver && referenceLap !== null)}>
+          <span>01</span>
+          <div>
+            <strong>Decision point</strong>
+            <small>
+              {driver
+                ? `${driverLabel(driver)} · ${driver.laps_completed} completed own laps`
+                : "Choose a driver and completed lap"}
+            </small>
+          </div>
+        </li>
+        <li data-ready={pitLap.trim() !== ""}>
+          <span>02</span>
+          <div>
+            <strong>Alternative stop</strong>
+            <small>
+              {pitLap.trim()
+                ? `Fit ${compound} · own lap ${pitLap}`
+                : "Set the first lap on new tyres below"}
+            </small>
+          </div>
+        </li>
+        <li data-ready={visibleState.kind === "ready"}>
+          <span>03</span>
+          <div>
+            <strong>Compare the uncertainty</strong>
+            <small>500 paired paths · pit-loss sensitivity</small>
+          </div>
+        </li>
+      </ol>
+      {!driver || referenceLap === null ? (
+        <AsyncState
+          kind="unavailable"
+          title="Select a completed decision point"
+          detail="Choose a driver and seek to a completed lap before comparing strategies."
+          href="/app/replays?mode=strategy"
+          linkLabel="Choose a detailed race"
+        />
+      ) : null}
       <div className="strategy-console">
         <div className="strategy-controls">
           <label>
@@ -239,7 +280,13 @@ export function StrategyPanel({
             </div>
           )}
           {visibleState.kind === "error" && (
-            <div role="alert">{visibleState.message}</div>
+            <AsyncState
+              kind="error"
+              title="Comparison could not be completed"
+              detail={visibleState.message}
+              onRetry={run}
+              retryLabel="Run comparison again"
+            />
           )}
           {visibleState.kind === "ready" &&
             visibleState.data.status === "unavailable" && (

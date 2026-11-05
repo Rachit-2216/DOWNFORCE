@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DriverState, IntelligenceResponse } from "@/lib/api/types";
@@ -62,6 +68,28 @@ const available: IntelligenceResponse = {
 };
 
 describe("IntelligencePanel", () => {
+  it("retries inference at the same driver and cursor without reloading replay", async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(available), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetcher);
+    render(
+      <IntelligencePanel
+        sessionId="session-1"
+        driver={driver}
+        cursorMs={1_800_000}
+      />,
+    );
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("1:30.500")).toBeVisible();
+    expect(String(fetcher.mock.calls[0][0])).toBe(
+      String(fetcher.mock.calls[1][0]),
+    );
+  });
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

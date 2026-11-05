@@ -170,14 +170,14 @@ describe("application shell", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
 
     const race = render(<RaceOverview eventId="event-2024-round-12" />);
-    expect(await screen.findByRole("alert")).toHaveAttribute(
+    expect((await screen.findByRole("alert")).closest("main")).toHaveAttribute(
       "id",
       "main-content",
     );
 
     race.unmount();
     render(<ArchiveWorkspace eventId="event-2024-round-12" />);
-    expect(await screen.findByRole("alert")).toHaveAttribute(
+    expect((await screen.findByRole("alert")).closest("main")).toHaveAttribute(
       "id",
       "main-content",
     );

@@ -32,10 +32,16 @@ function raceToolHref(session: SessionSummary, mode: ToolMode) {
     : href;
 }
 
-export function OnlineTools() {
+export function OnlineTools({
+  layout = "standalone",
+}: {
+  layout?: "standalone" | "landing";
+}) {
   const headingId = useId();
   const [state, setState] = useState<RaceState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const [preview, setPreview] = useState<ToolMode>("replay");
+  const [selectedSession, setSelectedSession] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -71,6 +77,41 @@ export function OnlineTools() {
   ].slice(0, 3);
   const entryHref = (mode: ToolMode) =>
     featured[0] ? raceToolHref(featured[0], mode) : replayLibraryHref(mode);
+  const previewRace =
+    sessions.find((session) => session.session_id === selectedSession) ??
+    featured[0];
+  const previewCopy = {
+    replay: {
+      title: "Find the moment that changed the race.",
+      boundary: "Observed history",
+      body: "Select a driver, scrub the timeline and follow timing, stints and race conditions together.",
+      steps: [
+        "Choose your driver",
+        "Seek a lap or play the race",
+        "Inspect timing and race events",
+      ],
+    },
+    intelligence: {
+      title: "Read beyond the last lap.",
+      boundary: "Predicted, not observed",
+      body: "Inspect next-lap pace, tyre residual and effective pit loss, with uncertainty visible alongside every estimate.",
+      steps: [
+        "Pause at a decision point",
+        "Inspect the available clean history",
+        "Read the estimate and its interval",
+      ],
+    },
+    strategy: {
+      title: "Change the decision. Test the consequence.",
+      boundary: "Simulated, not observed",
+      body: "Compare staying out against a tyre change over 500 paired paths. See when pit-loss uncertainty makes the answer fragile.",
+      steps: [
+        "Choose a pit lap and compound",
+        "Run the paired simulation",
+        "Inspect sensitivity, not just a winner",
+      ],
+    },
+  }[preview];
   const tools = [
     { name: "Race archive", detail: "The historical record", href: "/app" },
     {
@@ -96,7 +137,10 @@ export function OnlineTools() {
   ];
 
   return (
-    <section className="online-tools" aria-labelledby={headingId}>
+    <section
+      className={`online-tools online-tools--${layout}`}
+      aria-labelledby={headingId}
+    >
       <header className="online-tools__heading">
         <div>
           <p className="online-tools__eyebrow">YOUR RACE WORKSPACE / ONLINE</p>
@@ -119,6 +163,104 @@ export function OnlineTools() {
           </Link>
         ))}
       </nav>
+      <div className="tool-preview">
+        <div
+          className="tool-preview__tabs"
+          role="tablist"
+          aria-label="Explore the race tools"
+        >
+          {modes.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              id={`${headingId}-${mode}`}
+              aria-controls={`${headingId}-preview`}
+              aria-selected={preview === mode}
+              tabIndex={preview === mode ? 0 : -1}
+              onKeyDown={(event) => {
+                const index = modes.indexOf(mode);
+                const next =
+                  event.key === "ArrowRight"
+                    ? (index + 1) % modes.length
+                    : event.key === "ArrowLeft"
+                      ? (index + modes.length - 1) % modes.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? modes.length - 1
+                          : null;
+                if (next === null) return;
+                event.preventDefault();
+                setPreview(modes[next]);
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                  [next]?.focus();
+              }}
+              onClick={() => setPreview(mode)}
+            >
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div
+          className={`tool-preview__panel tool-preview__panel--${preview}`}
+          role="tabpanel"
+          id={`${headingId}-preview`}
+          aria-labelledby={`${headingId}-${preview}`}
+          tabIndex={0}
+        >
+          <div className="tool-preview__story" key={preview}>
+            <span className="tool-preview__boundary">
+              <i aria-hidden="true" />
+              {previewCopy.boundary}
+            </span>
+            <h3>{previewCopy.title}</h3>
+            <p>{previewCopy.body}</p>
+            <label>
+              Preview race
+              <select
+                aria-label="Preview race"
+                value={previewRace?.session_id ?? ""}
+                disabled={!sessions.length}
+                onChange={(event) => setSelectedSession(event.target.value)}
+              >
+                {sessions.length ? (
+                  sessions.map((session) => (
+                    <option key={session.session_id} value={session.session_id}>
+                      {session.season} · {session.event_name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Choose a race from the library</option>
+                )}
+              </select>
+            </label>
+            <Link
+              className="tool-preview__open"
+              href={
+                previewRace
+                  ? raceToolHref(previewRace, preview)
+                  : replayLibraryHref(preview)
+              }
+              prefetch={false}
+            >
+              Open {preview} <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+          <ol
+            className="tool-preview__journey"
+            aria-label={`${preview} workflow`}
+          >
+            {previewCopy.steps.map((step, index) => (
+              <li key={step}>
+                <span aria-hidden="true">0{index + 1}</span>
+                <strong>{step}</strong>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
       <div className="online-tools__race-heading">
         <p className="online-tools__eyebrow">DETAILED RACE CONTEXTS</p>
         <span>

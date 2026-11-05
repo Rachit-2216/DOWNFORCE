@@ -61,13 +61,14 @@ export function useReplayController(
     () => setAuthoritativeCursorMs(cursorRef.current),
     [],
   );
-  const setPlaying = useCallback(
-    (playing: boolean) => setPlayingState(playing),
-    [],
-  );
+  const setPlaying = useCallback((playing: boolean) => {
+    playingRef.current = playing;
+    setPlayingState(playing);
+    if (!playing) setAuthoritativeCursorMs(cursorRef.current);
+  }, []);
   const togglePlaying = useCallback(
-    () => setPlayingState((playing) => !playing),
-    [],
+    () => setPlaying(!playingRef.current),
+    [setPlaying],
   );
   const setSpeed = useCallback(
     (nextSpeed: number) => setSpeedState(clamp(nextSpeed, 0.5, 4)),

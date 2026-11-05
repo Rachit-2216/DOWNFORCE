@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useState, type ReactNode } from "react";
 
 import type { AnalyticsCoverage, JsonValue } from "@/lib/api/types";
 
@@ -13,10 +16,18 @@ export const analyticsNav = [
 ] as const;
 
 export function AnalyticsNav() {
+  const pathname = usePathname() ?? "";
+  const active =
+    analyticsNav.slice(1).find(([, href]) => pathname.startsWith(href))?.[1] ??
+    analyticsNav[0][1];
   return (
     <nav className="analytics-nav" aria-label="Analytics sections">
       {analyticsNav.map(([label, href]) => (
-        <Link key={href} href={href}>
+        <Link
+          key={href}
+          href={href}
+          aria-current={active === href ? "page" : undefined}
+        >
           {label}
         </Link>
       ))}
@@ -146,6 +157,7 @@ export function LineChart({
   xAxisLabel?: string;
   valuePrefix?: string;
 }) {
+  const [inspectedRound, setInspectedRound] = useState<number | null>(null);
   const values = series.flatMap((item) =>
     item.points.map((point) => point.value),
   );
@@ -156,6 +168,11 @@ export function LineChart({
     return <EmptyState>No trend samples are available.</EmptyState>;
   const max = Math.max(...values, 1);
   const maxRound = Math.max(...rounds, 1);
+  const minRound = Math.min(...rounds);
+  const selectedRound = Math.min(
+    maxRound,
+    Math.max(minRound, inspectedRound ?? maxRound),
+  );
   const colors = ["#246bff", "#f44336", "#ffd400", "#f4f7ff", "#71809d"];
   const patterns = ["none", "18 8", "4 7", "14 5 3 5", "2 5"];
   return (
@@ -188,12 +205,36 @@ export function LineChart({
             />
           );
         })}
+        <line
+          className="chart-cursor"
+          x1={30 + (selectedRound / maxRound) * 840}
+          x2={30 + (selectedRound / maxRound) * 840}
+          y1="30"
+          y2="260"
+        />
       </svg>
+      <label className="chart-inspector">
+        <span>
+          Inspect {xAxisLabel} <strong>{selectedRound}</strong>
+        </span>
+        <input
+          type="range"
+          aria-label={`Inspect ${xAxisLabel}`}
+          min={minRound}
+          max={maxRound}
+          step={1}
+          value={selectedRound}
+          onChange={(event) => setInspectedRound(Number(event.target.value))}
+        />
+      </label>
       <figcaption>
         <span>{label}</span>
         <ol>
           {series.map((item, index) => {
             const latest = item.points.at(-1);
+            const inspected = item.points
+              .filter((point) => point.round_number <= selectedRound)
+              .at(-1);
             return (
               <li key={item.name}>
                 <i
@@ -213,6 +254,11 @@ export function LineChart({
                     ? ` · latest ${valuePrefix}${formatMetric(latest.display_value ?? latest.value)} at ${xAxisLabel} ${formatMetric(latest.round_number)}`
                     : ""}
                 </small>
+                <output>
+                  {inspected
+                    ? `recorded ${valuePrefix}${formatMetric(inspected.display_value ?? inspected.value)} at ${xAxisLabel} ${inspected.round_number}`
+                    : "No recorded sample at this point"}
+                </output>
               </li>
             );
           })}

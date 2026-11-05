@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AsyncState } from "@/components/ui/AsyncState";
+import { detailedRaceHref } from "@/lib/product-navigation";
 
 import { ApiClientError, getIntelligence } from "@/lib/api/client";
 import type { DriverState, IntelligenceResponse } from "@/lib/api/types";
@@ -33,8 +35,9 @@ export function IntelligencePanel({
 }) {
   const [state, setState] = useState<IntelligenceState>({ kind: "idle" });
   const sequence = useRef(0);
+  const [attempt, setAttempt] = useState(0);
   const requestKey = driver
-    ? `${driver.driver_id}:${Math.round(cursorMs)}`
+    ? `${sessionId}:${driver.driver_id}:${Math.round(cursorMs)}:${attempt}`
     : null;
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export function IntelligencePanel({
       signal: controller.signal,
     })
       .then((data) => {
-        if (request === sequence.current)
+        if (!controller.signal.aborted && request === sequence.current)
           setState({ kind: "ready", key: requestKey, data });
       })
       .catch((error: unknown) => {
@@ -60,7 +63,7 @@ export function IntelligencePanel({
         });
       });
     return () => controller.abort();
-  }, [cursorMs, driver, requestKey, sessionId]);
+  }, [cursorMs, driver, requestKey, sessionId, attempt]);
 
   const name = driver ? driverLabel(driver) : "No driver selected";
   const visibleKind =
@@ -97,9 +100,12 @@ export function IntelligencePanel({
         </div>
       )}
       {visibleKind === "error" && state.kind === "error" && (
-        <div className="panel-empty" role="alert">
-          {state.message}
-        </div>
+        <AsyncState
+          kind="error"
+          title="Predictions could not be loaded"
+          detail={state.message}
+          onRetry={() => setAttempt((value) => value + 1)}
+        />
       )}
       {visibleKind === "ready" &&
         state.kind === "ready" &&
@@ -111,6 +117,14 @@ export function IntelligencePanel({
               Canonical replay remains fully available while intelligence is
               unavailable.
             </small>
+            <a
+              href={detailedRaceHref(sessionId, "replay", {
+                driverId: driver?.driver_id,
+                timeMs: cursorMs,
+              })}
+            >
+              Return to replay at this cursor →
+            </a>
           </div>
         )}
       {visibleKind === "ready" &&

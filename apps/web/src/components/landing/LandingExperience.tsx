@@ -359,7 +359,7 @@ export function LandingExperience() {
               Simulated <small>Plausible alternatives</small>
             </span>
           </div>
-          <OnlineTools />
+          <OnlineTools layout="landing" />
           <div className="public-feature-grid">
             {publicFeatures.map((feature, index) => (
               <article

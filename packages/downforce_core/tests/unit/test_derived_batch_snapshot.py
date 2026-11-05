@@ -172,16 +172,39 @@ def test_derived_batch_rejects_cross_host_conflict(tmp_path):
 
 
 @pytest.mark.parametrize("first_error", [False, True])
-def test_derived_batch_retains_unsafe_unrelated_pickle_error_order(tmp_path, first_error):
+@pytest.mark.parametrize("reverse_documents", [False, True])
+def test_derived_batch_retains_unsafe_unrelated_pickle_error_order(
+    tmp_path, first_error, reverse_documents, monkeypatch
+):
     rows = derived_root(tmp_path)
+    original_glob = Path.glob
+
+    def document_order(path, pattern):
+        paths = list(original_glob(path, pattern))
+        if path == tmp_path / "completion-derived" and reverse_documents:
+            paths.reverse()
+        return iter(paths)
+
+    monkeypatch.setattr(Path, "glob", document_order)
     database = tmp_path / "reconciliation-cache/fastf1_http_cache.sqlite"
     with sqlite3.connect(database) as db:
         if first_error:
-            saved = pickle.loads(
-                db.execute("SELECT value FROM responses WHERE key='0'").fetchone()[0]
-            )
-            saved["request"]["url"] = "https://example.test/wrong-request"
-            db.execute("UPDATE responses SET value=? WHERE key='0'", (pickle.dumps(saved),))
+            # The first document is filesystem-dependent. Corrupt the response
+            # that this operation actually validates first, not always key '0'.
+            first_document = next((tmp_path / "completion-derived").glob("*.json"))
+            entry = next(row for row in rows if row["session_id"] == first_document.stem)
+            source = json.loads((tmp_path / "completion" / first_document.name).read_bytes())
+            expected_url = evidence.status_url(entry, source)
+            for key, blob in db.execute("SELECT key, value FROM responses ORDER BY key"):
+                saved = pickle.loads(blob)
+                if saved["url"] == expected_url:
+                    saved["request"]["url"] = "https://example.test/wrong-request"
+                    db.execute(
+                        "UPDATE responses SET value=? WHERE key=?", (pickle.dumps(saved), key)
+                    )
+                    break
+            else:
+                pytest.fail("the first derived document must have a captured fixture response")
         db.execute("INSERT INTO responses VALUES ('unsafe', ?, NULL)", (pickle.dumps(Path("x")),))
     message = "cached request identity differs" if first_error else "pickle globals"
     with pytest.raises(ValueError, match=message):

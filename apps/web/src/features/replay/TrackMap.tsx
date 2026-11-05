@@ -90,9 +90,11 @@ export const TrackMap = memo(function TrackMap({
         ) : (
           <div className="panel-empty">
             <strong>
-              {availability === "available"
-                ? "Track geometry unavailable"
-                : "Track position data unavailable"}
+              {loading
+                ? "Loading circuit trace…"
+                : availability === "available"
+                  ? "Track geometry unavailable"
+                  : "Track position data unavailable"}
             </strong>
             <span>
               {errorMessage ??

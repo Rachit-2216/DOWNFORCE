@@ -1,13 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useAsyncResource } from "@/lib/use-async-resource";
+import { AsyncState } from "@/components/ui/AsyncState";
 
-import {
-  ApiClientError,
-  getArchiveResults,
-  getCatalogEvent,
-} from "@/lib/api/client";
+import { getArchiveResults, getCatalogEvent } from "@/lib/api/client";
 import type {
   ArchiveResult,
   CatalogEvent,
@@ -35,12 +32,6 @@ const COVERAGE: [keyof RaceDataCapabilities, string][] = [
   ["strategy_simulation", "Strategy simulation"],
 ];
 
-function message(error: unknown): string {
-  return error instanceof ApiClientError
-    ? error.message
-    : "This race could not be loaded from the historical catalog.";
-}
-
 function formatDuration(value: number | null): string {
   if (value === null) return "—";
   const seconds = Math.floor(value / 1_000);
@@ -51,47 +42,56 @@ function formatDuration(value: number | null): string {
 }
 
 export function RaceOverview({ eventId }: { eventId: string }) {
-  const [state, setState] = useState<State>({ kind: "loading" });
-  useEffect(() => {
-    const controller = new AbortController();
-    void getCatalogEvent(eventId, { signal: controller.signal })
-      .then(async (event) => {
-        const session = event.sessions[0];
-        const results =
-          session?.status === "completed" && session.capabilities.results
-            ? await getArchiveResults(
-                session.session_id,
-                { limit: 100 },
-                { signal: controller.signal },
-              )
-            : { items: [] };
-        setState({ kind: "ready", event, results: results.items });
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          setState({ kind: "error", message: message(error) });
-      });
-    return () => controller.abort();
-  }, [eventId]);
+  const resource = useAsyncResource(`event:${eventId}`, async (signal) => {
+    const event = await getCatalogEvent(eventId, { signal });
+    const session = event.sessions[0];
+    const results =
+      session?.status === "completed" && session.capabilities.results
+        ? await getArchiveResults(
+            session.session_id,
+            { limit: 100 },
+            { signal },
+          )
+        : { items: [] };
+    return { event, results: results.items };
+  });
+  const state: State = resource.data
+    ? { kind: "ready", ...resource.data }
+    : resource.error
+      ? { kind: "error", message: resource.error }
+      : { kind: "loading" };
 
   if (state.kind === "loading")
     return (
-      <main className="catalog-gate" id="main-content" role="status">
-        Loading race overview…
+      <main className="catalog-gate" id="main-content">
+        <AsyncState kind="loading" title="Loading race overview…" href="/app" />
       </main>
     );
   if (state.kind === "error")
     return (
-      <main className="catalog-gate" id="main-content" role="alert">
-        <strong>Race overview unavailable</strong>
-        <span>{state.message}</span>
-        <Link href="/app">Return to Explore</Link>
+      <main className="catalog-gate" id="main-content">
+        <AsyncState
+          kind="error"
+          title="Race overview unavailable"
+          detail={state.message}
+          onRetry={resource.retry}
+          href="/app"
+        />
       </main>
     );
 
   const { event, results } = state;
   const session = event.sessions[0];
-  if (!session) return null;
+  if (!session)
+    return (
+      <main className="catalog-gate" id="main-content">
+        <AsyncState
+          kind="unavailable"
+          title="No race session is published for this event"
+          href="/app"
+        />
+      </main>
+    );
   return (
     <main className="race-overview" id="main-content">
       <nav className="catalog-breadcrumb" aria-label="Breadcrumb">

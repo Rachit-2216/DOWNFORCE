@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useAsyncResource } from "@/lib/use-async-resource";
+import { AsyncState } from "@/components/ui/AsyncState";
 
 import {
-  ApiClientError,
   getArchiveLaps,
   getArchivePitStops,
   getArchiveResults,
   getCatalogEvent,
 } from "@/lib/api/client";
 import type {
-  ArchiveLap,
-  ArchivePitStop,
   ArchiveResult,
   CatalogEvent,
   RaceDataCapabilities,
@@ -53,12 +52,6 @@ const VIEWS: {
   { value: "conditions", label: "Conditions", capability: "weather" },
 ];
 
-function errorMessage(error: unknown): string {
-  return error instanceof ApiClientError
-    ? error.message
-    : "The engineering workspace could not load this race.";
-}
-
 function initialMode(): WorkspaceMode {
   if (typeof window === "undefined") return "overview";
   const value = new URLSearchParams(window.location.search).get("mode");
@@ -82,12 +75,12 @@ function pushWorkspaceState(
 ) {
   const url = new URL(window.location.href);
   url.searchParams.set("mode", mode);
+  url.searchParams.set("lap", String(lap));
   if (mode === "replay") {
     url.searchParams.set("view", view);
     url.searchParams.set("lap", String(lap));
   } else {
     url.searchParams.delete("view");
-    url.searchParams.delete("lap");
   }
   window.history.pushState(null, "", url);
 }
@@ -104,10 +97,38 @@ function capabilityReason(label: string): string {
 }
 
 export function ArchiveWorkspace({ eventId }: { eventId: string }) {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const resource = useAsyncResource(`workspace:${eventId}`, async (signal) => {
+    const event = await getCatalogEvent(eventId, { signal });
+    const session = event.sessions[0];
+    const response =
+      session?.status === "completed" && session.capabilities.results
+        ? await getArchiveResults(
+            session.session_id,
+            { limit: 100 },
+            { signal },
+          )
+        : { items: [] };
+    return { event, results: response.items };
+  });
+  const state: LoadState = resource.data
+    ? { kind: "ready", ...resource.data }
+    : resource.error
+      ? { kind: "error", message: resource.error }
+      : { kind: "loading" };
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
   const [view, setView] = useState<ReplayView>(initialView);
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [driverSelection, setSelectedDriverId] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("driver"),
+  );
+  const selectedDriverId =
+    state.kind === "ready"
+      ? (state.results.find((item) => item.driver_id === driverSelection)
+          ?.driver_id ??
+        state.results[0]?.driver_id ??
+        null)
+      : null;
   const [selectedLap, setSelectedLap] = useState(() => {
     if (typeof window === "undefined") return 1;
     const rawLap = Number(
@@ -115,14 +136,14 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
     );
     return Number.isFinite(rawLap) && rawLap >= 1 ? Math.round(rawLap) : 1;
   });
-  const [driverLaps, setDriverLaps] = useState<ArchiveLap[]>([]);
-  const [lapPositions, setLapPositions] = useState<ArchiveLap[]>([]);
-  const [pitStops, setPitStops] = useState<ArchivePitStop[]>([]);
 
   useEffect(() => {
     const onPopState = () => {
       setMode(initialMode());
       setView(initialView());
+      setSelectedDriverId(
+        new URLSearchParams(window.location.search).get("driver"),
+      );
       const nextLap = Number(
         new URLSearchParams(window.location.search).get("lap"),
       );
@@ -133,125 +154,129 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void getCatalogEvent(eventId, { signal: controller.signal })
-      .then(async (event) => {
-        const session = event.sessions[0];
-        const response =
-          session?.status === "completed"
-            ? await getArchiveResults(
-                session.session_id,
-                { limit: 100 },
-                { signal: controller.signal },
-              )
-            : { items: [] };
-        setSelectedDriverId(response.items[0]?.driver_id ?? null);
-        setState({ kind: "ready", event, results: response.items });
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          setState({ kind: "error", message: errorMessage(error) });
-      });
-    return () => controller.abort();
-  }, [eventId]);
-
   const event = state.kind === "ready" ? state.event : null;
   const session = event?.sessions[0] ?? null;
-  const maximumLap = useMemo(
-    () =>
-      state.kind === "ready"
-        ? state.results.reduce(
-            (maximum, result) => Math.max(maximum, result.laps_completed ?? 0),
-            1,
-          )
-        : 1,
-    [state],
-  );
+  const maximumLap =
+    state.kind === "ready"
+      ? state.results.reduce(
+          (maximum, result) => Math.max(maximum, result.laps_completed ?? 0),
+          1,
+        )
+      : 1;
 
-  useEffect(() => {
-    if (!session || !selectedDriverId || mode !== "replay") return;
-    const controller = new AbortController();
-    const lapRequest = getArchiveLaps(
-      session.session_id,
-      { driverId: selectedDriverId, limit: 1_000 },
-      { signal: controller.signal },
-    );
-    const pitRequest = session.capabilities.pit_stops
-      ? getArchivePitStops(
+  const driverResource = useAsyncResource(
+    `driver-laps:${session?.session_id}:${selectedDriverId}:${mode}`,
+    async (signal) => {
+      if (
+        !session ||
+        !selectedDriverId ||
+        mode !== "replay" ||
+        (!session.capabilities.lap_times && !session.capabilities.lap_positions)
+      )
+        return [];
+      return (
+        await getArchiveLaps(
+          session.session_id,
+          { driverId: selectedDriverId, limit: 1000 },
+          { signal },
+        )
+      ).items;
+    },
+  );
+  const pitResource = useAsyncResource(
+    `driver-pits:${session?.session_id}:${selectedDriverId}:${mode}`,
+    async (signal) => {
+      if (
+        !session?.capabilities.pit_stops ||
+        !selectedDriverId ||
+        mode !== "replay"
+      )
+        return null;
+      return (
+        await getArchivePitStops(
           session.session_id,
           { driverId: selectedDriverId },
-          { signal: controller.signal },
+          { signal },
         )
-      : Promise.resolve({ items: [] });
-    void Promise.all([lapRequest, pitRequest])
-      .then(([laps, pits]) => {
-        setDriverLaps(laps.items);
-        setPitStops(pits.items);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setDriverLaps([]);
-          setPitStops([]);
-        }
-      });
-    return () => controller.abort();
-  }, [mode, selectedDriverId, session]);
+      ).items;
+    },
+  );
+  const timingResource = useAsyncResource(
+    `lap:${session?.session_id}:${mode}:${view}:${selectedLap}`,
+    async (signal) => {
+      if (
+        !session ||
+        mode !== "replay" ||
+        view !== "timing" ||
+        !session.capabilities.lap_positions
+      )
+        return [];
+      return (
+        await getArchiveLaps(
+          session.session_id,
+          { fromLap: selectedLap, toLap: selectedLap, limit: 100 },
+          { signal },
+        )
+      ).items;
+    },
+  );
+  const driverLaps = driverResource.data ?? [];
+  const lapPositions = timingResource.data ?? [];
 
-  useEffect(() => {
-    if (!session || mode !== "replay" || view !== "timing") return;
-    const controller = new AbortController();
-    void getArchiveLaps(
-      session.session_id,
-      { fromLap: selectedLap, toLap: selectedLap, limit: 100 },
-      { signal: controller.signal },
-    )
-      .then((response) => setLapPositions(response.items))
-      .catch(() => {
-        if (!controller.signal.aborted) setLapPositions([]);
-      });
-    return () => controller.abort();
-  }, [mode, selectedLap, session, view]);
-
-  const selectMode = useCallback(
-    (next: WorkspaceMode) => {
-      setMode(next);
-      pushWorkspaceState(next, view, selectedLap);
-    },
-    [selectedLap, view],
-  );
-  const selectView = useCallback(
-    (next: ReplayView) => {
-      setView(next);
-      pushWorkspaceState("replay", next, selectedLap);
-    },
-    [selectedLap],
-  );
-  const seekLap = useCallback(
-    (lap: number) => {
-      const next = Math.min(maximumLap, Math.max(1, lap));
-      setSelectedLap(next);
-      const url = new URL(window.location.href);
-      url.searchParams.set("lap", String(next));
-      window.history.replaceState(null, "", url);
-    },
-    [maximumLap],
-  );
+  const selectMode = (next: WorkspaceMode) => {
+    setMode(next);
+    pushWorkspaceState(next, view, selectedLap);
+  };
+  const selectView = (next: ReplayView) => {
+    setView(next);
+    pushWorkspaceState("replay", next, selectedLap);
+  };
+  const seekLap = (lap: number) => {
+    const next = Math.min(maximumLap, Math.max(1, lap));
+    setSelectedLap(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("lap", String(next));
+    window.history.replaceState(null, "", url);
+  };
+  const chooseDriver = (id: string) => {
+    setSelectedDriverId(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("driver", id);
+    window.history.replaceState(null, "", url);
+  };
 
   if (state.kind === "loading")
     return (
-      <main className="catalog-gate" id="main-content" role="status">
-        Opening engineering workspace…
+      <main className="catalog-gate" id="main-content">
+        <AsyncState
+          kind="loading"
+          title="Opening engineering workspace…"
+          href="/app"
+        />
       </main>
     );
   if (state.kind === "error")
     return (
-      <main className="catalog-gate" id="main-content" role="alert">
-        <strong>Workspace unavailable</strong>
-        <span>{state.message}</span>
+      <main className="catalog-gate" id="main-content">
+        <AsyncState
+          kind="error"
+          title="Workspace unavailable"
+          detail={state.message}
+          onRetry={resource.retry}
+          href="/app"
+        />
       </main>
     );
-  if (!event || !session) return null;
+  if (!event || !session)
+    return (
+      <main className="catalog-gate" id="main-content">
+        <AsyncState
+          kind="unavailable"
+          title="No race session is published for this event"
+          href="/app"
+        />
+      </main>
+    );
 
   const replayAvailable =
     session.capabilities.lap_times || session.capabilities.lap_positions;
@@ -385,7 +410,7 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
                 className={
                   result.driver_id === selectedDriverId ? "is-active" : ""
                 }
-                onClick={() => setSelectedDriverId(result.driver_id)}
+                onClick={() => chooseDriver(result.driver_id)}
                 key={result.driver_id}
               >
                 <strong>{result.finish_position ?? "—"}</strong>
@@ -468,6 +493,25 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
                     Lap {selectedLap} / {maximumLap}
                   </output>
                 </div>
+                {timingResource.loading ? (
+                  <AsyncState
+                    kind="loading"
+                    title={`Loading lap ${selectedLap} timing…`}
+                  />
+                ) : timingResource.error ? (
+                  <AsyncState
+                    kind="error"
+                    title="Lap timing could not be loaded"
+                    detail={timingResource.error}
+                    onRetry={timingResource.retry}
+                  />
+                ) : !lapPositions.length ? (
+                  <AsyncState
+                    kind="empty"
+                    title="No recorded positions at this lap"
+                    detail="Try another lap or inspect the final classification."
+                  />
+                ) : null}
                 <ol className="archive-timing-list">
                   {[...lapPositions]
                     .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
@@ -486,7 +530,7 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
                         >
                           <button
                             type="button"
-                            onClick={() => setSelectedDriverId(lap.driver_id)}
+                            onClick={() => chooseDriver(lap.driver_id)}
                           >
                             <strong>P{lap.position ?? "—"}</strong>
                             <span>
@@ -515,10 +559,34 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
                   </div>
                   <div>
                     <dt>Stops</dt>
-                    <dd>{pitStops.length}</dd>
+                    <dd>
+                      {pitResource.data
+                        ? pitResource.data.length
+                        : pitResource.loading
+                          ? "Loading…"
+                          : "Not provided"}
+                    </dd>
                   </div>
                 </dl>
                 <h3>Lap history</h3>
+                {driverResource.error ? (
+                  <AsyncState
+                    kind="error"
+                    title="Driver laps could not be loaded"
+                    detail={driverResource.error}
+                    onRetry={driverResource.retry}
+                  />
+                ) : driverResource.loading ? (
+                  <AsyncState kind="loading" title="Loading driver history…" />
+                ) : null}
+                {pitResource.error ? (
+                  <AsyncState
+                    kind="error"
+                    title="Pit history could not be loaded"
+                    detail={pitResource.error}
+                    onRetry={pitResource.retry}
+                  />
+                ) : null}
                 <ol>
                   {driverLaps
                     .filter(
@@ -535,14 +603,33 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
               </aside>
             </section>
           ) : (
-            <DetailedHandoff event={event} view={view} />
+            <DetailedHandoff
+              event={event}
+              view={view}
+              driverNumber={selectedResult?.car_number}
+              lap={selectedLap}
+            />
           )}
         </>
       )}
 
       {(mode === "intelligence" || mode === "strategy") && (
-        <DetailedHandoff event={event} view={mode} />
+        <DetailedHandoff
+          event={event}
+          view={mode}
+          driverNumber={selectedResult?.car_number}
+          lap={selectedLap}
+        />
       )}
+      {mode === "replay" && !replayAvailable ? (
+        <AsyncState
+          kind="unavailable"
+          title="Lap replay is not recorded for this race"
+          detail="The final classification and season analytics remain available."
+          href={`/app/analytics/races/${encodeURIComponent(session.session_id)}`}
+          linkLabel="Inspect race analytics"
+        />
+      ) : null}
     </main>
   );
 }
@@ -550,11 +637,26 @@ export function ArchiveWorkspace({ eventId }: { eventId: string }) {
 function DetailedHandoff({
   event,
   view,
+  driverNumber,
+  lap,
 }: {
   event: CatalogEvent;
   view: ReplayView | "intelligence" | "strategy";
+  driverNumber?: number | null;
+  lap: number;
 }) {
   const legacy = event.sessions[0]?.legacy_session_id;
+  const isReplay = VIEWS.some((item) => item.value === view);
+  const params = new URLSearchParams({ mode: isReplay ? "replay" : view });
+  if (isReplay) params.set("view", view);
+  if (
+    driverNumber != null &&
+    Number.isInteger(driverNumber) &&
+    driverNumber > 0
+  ) {
+    params.set("driver", String(driverNumber));
+    params.set("lap", String(lap));
+  }
   return (
     <section className="workspace-handoff">
       <p className="section-kicker">Detailed canonical workspace</p>
@@ -566,14 +668,18 @@ function DetailedHandoff({
       {legacy ? (
         <Link
           className="button button--primary"
-          href={`/app/replay/${encodeURIComponent(legacy)}?mode=${view === "track" || view === "stints" || view === "events" || view === "conditions" ? "replay" : view}&view=${view}`}
+          href={`/app/replay/${encodeURIComponent(legacy)}?${params}`}
         >
           Continue with verified detailed data ↗
         </Link>
       ) : (
-        <span className="action-unavailable">
-          This race is outside the frozen 13-race detailed corpus.
-        </span>
+        <AsyncState
+          kind="unavailable"
+          title="This race has archive coverage, not detailed coverage"
+          detail="Keep exploring its classification and lap record, or choose a published detailed race for these tools."
+          href="/app/replays"
+          linkLabel="Choose a detailed race"
+        />
       )}
     </section>
   );

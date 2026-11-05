@@ -61,6 +61,37 @@ afterEach(() => {
 });
 
 describe("OnlineTools", () => {
+  it("lets visitors inspect a tool and opens it in their chosen published race", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      response([hungary, britain]),
+    );
+    render(<OnlineTools />);
+    await screen.findAllByRole("article");
+    fireEvent.click(screen.getByRole("tab", { name: "Strategy" }));
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Strategy" }), {
+      key: "ArrowLeft",
+    });
+    expect(screen.getByRole("tab", { name: "Intelligence" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Intelligence" }), {
+      key: "ArrowRight",
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Preview race" }), {
+      target: { value: britain.session_id },
+    });
+    const panel = screen.getByRole("tabpanel");
+    expect(
+      within(panel).getByRole("link", { name: /Open strategy/ }),
+    ).toHaveAttribute(
+      "href",
+      `/app/replay/${britain.session_id}?mode=strategy&driver=1&lap=5`,
+    );
+    expect(
+      within(panel).getByText(/Simulated, not observed/),
+    ).toBeInTheDocument();
+  });
   it("fetches once, selects actual published representatives, and exposes all three race modes", async () => {
     const fetcher = vi
       .spyOn(globalThis, "fetch")

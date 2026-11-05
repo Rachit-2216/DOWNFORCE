@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -254,10 +255,117 @@ function installCanonicalFetch(failFirstState = false, extended = false) {
 }
 
 describe("replay workspace integration", () => {
+  it("does not let a late lap lookup override a newer manual time seek", async () => {
+    const { fetcher } = installCanonicalFetch(false, true);
+    const original = fetcher.getMockImplementation()!;
+    let finish!: (value: Response) => void;
+    fetcher.mockImplementation((input, init) =>
+      String(input).includes("/state?lap=")
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : original(input, init),
+    );
+    render(<ReplayWorkspace sessionId={sessionId} />);
+    await screen.findByLabelText("Track status clear");
+    fireEvent.click(screen.getByRole("button", { name: "Next leader lap" }));
+    fireEvent.change(screen.getByRole("slider", { name: "Replay time" }), {
+      target: { value: "500" },
+    });
+    await act(async () =>
+      finish(response({ ...canonicalState(), session_time_ms: 5000 })),
+    );
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("500");
+  });
+  it("does not switch the default selected driver when the race leader changes", async () => {
+    window.history.replaceState(null, "", "/?t=1000");
+    const { fetcher } = installCanonicalFetch(false, true);
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (input, init) => {
+      const result = await original(input, init);
+      if (!String(input).includes("/state?time_ms=5000")) return result;
+      const body = await result.json();
+      body.drivers[0].position = 2;
+      body.drivers.find(
+        (driver: { driver_id: string; position: number }) =>
+          driver.driver_id === "driver-1",
+      ).position = 1;
+      return response(body);
+    });
+    render(<ReplayWorkspace sessionId={sessionId} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Selected driver")).toHaveValue(driverId),
+    );
+    window.history.replaceState(null, "", "/?t=5000");
+    fireEvent(window, new PopStateEvent("popstate"));
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("5000"),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Selected driver")).toHaveValue(driverId),
+    );
+  });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     window.history.replaceState(null, "", "/");
+  });
+  it("keeps product navigation present during initial loading", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise(() => {}),
+    );
+    render(<ReplayWorkspace sessionId={sessionId} />);
+    expect(
+      screen.getByRole("navigation", { name: "Product navigation" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /Choose another race/i }),
+    ).toHaveAttribute("href", "/app/replays");
+  });
+  it("does not block usable race timing on an optional circuit trace", async () => {
+    const { fetcher } = installCanonicalFetch();
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (input, init) => {
+      if (String(input).includes("/track-positions"))
+        return new Promise<Response>(() => {});
+      const result = await original(input, init);
+      if (String(input).endsWith(`/api/v1/sessions/${sessionId}`)) {
+        const body = await result.json();
+        body.tables.track_positions.availability = "available";
+        return response(body);
+      }
+      return result;
+    });
+    render(<ReplayWorkspace sessionId={sessionId} />);
+    expect(
+      await screen.findByRole("button", { name: /play replay/i }),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("button", { name: /status active/i }),
+    ).toBeVisible();
+  });
+
+  it("does not show later timing data during an unresolved backwards seek", async () => {
+    window.history.replaceState(null, "", "/?t=5000&mode=drivers");
+    const { fetcher } = installCanonicalFetch();
+    const original = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation((input, init) =>
+      String(input).includes("/state?time_ms=500&") ||
+      String(input).endsWith("/state?time_ms=500")
+        ? new Promise<Response>(() => {})
+        : original(input, init),
+    );
+    render(<ReplayWorkspace sessionId={sessionId} />);
+    await screen.findByRole("button", { name: /status active/i });
+    window.history.replaceState(null, "", "/?t=500&mode=drivers");
+    fireEvent(window, new PopStateEvent("popstate"));
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("500"),
+    );
+    expect(
+      screen.queryByRole("button", { name: /status active/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/loading race state/i)).toBeVisible();
   });
 
   it("shares driver and bounded completed-lap context across workspace modes", async () => {
