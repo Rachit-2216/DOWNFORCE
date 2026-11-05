@@ -144,7 +144,7 @@
 .public-machine[data-tour="false"] .anatomy-static-slot img {
   display: block;
 }
-.machine-handoff {
+.public-handoff {
   min-height: 105svh;
   display: grid;
   grid-template-columns: 58% 42%;
@@ -154,25 +154,25 @@
   border-top: 1px solid #263247;
   background: radial-gradient(ellipse at 28% 65%, #17284b55, transparent 55%);
 }
-.machine-handoff__copy {
+.public-handoff__copy {
   grid-column: 2;
   padding-left: 8%;
   position: relative;
   z-index: 2;
 }
-.machine-handoff h2 {
+.public-handoff h2 {
   font: 600 clamp(52px, 5vw, 76px)/0.98 var(--font-display);
   max-width: 390px;
   margin-top: 22px;
 }
-.machine-handoff__copy > p:not(.public-eyebrow) {
+.public-handoff__copy > p:not(.public-eyebrow) {
   font-size: 13px;
   line-height: 1.9;
   color: var(--public-muted);
   margin-top: 26px;
   max-width: 390px;
 }
-.machine-handoff__signals {
+.public-handoff__signals {
   margin: 28px 0;
   display: grid;
   gap: 14px;
@@ -181,38 +181,38 @@
     monospace;
   color: #c6d4ed;
 }
-.machine-handoff__signals span {
+.public-handoff__signals span {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.machine-handoff__signals i {
+.public-handoff__signals i {
   width: 6px;
   height: 6px;
   background: #8badf5;
 }
-.machine-handoff__signals span:nth-child(2) i {
+.public-handoff__signals span:nth-child(2) i {
   background: transparent;
   border: 1px solid #8badf5;
   transform: rotate(45deg);
 }
-.machine-handoff__signals span:nth-child(3) i {
+.public-handoff__signals span:nth-child(3) i {
   background: #e8bf69;
   border-radius: 50%;
 }
-.public-machine[data-tour="false"] .machine-handoff {
+.public-machine[data-tour="false"] .public-handoff {
   min-height: auto;
   padding-top: 65px;
   padding-bottom: 65px;
   grid-template-columns: 1fr;
 }
-.public-machine[data-tour="false"] .machine-handoff__copy {
+.public-machine[data-tour="false"] .public-handoff__copy {
   grid-column: 1;
   padding-left: 0;
   max-width: 700px;
 }
-.public-machine[data-tour="false"] .machine-handoff h2,
-.public-machine[data-tour="false"] .machine-handoff__copy > p {
+.public-machine[data-tour="false"] .public-handoff h2,
+.public-machine[data-tour="false"] .public-handoff__copy > p {
   max-width: 650px;
 }
 .machine-stage--paused {

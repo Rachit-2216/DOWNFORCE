@@ -289,8 +289,8 @@ export function LandingExperience() {
               }
             />
           </div>
-          <section className="machine-handoff" aria-labelledby="handoff-title">
-            <div className="machine-handoff__copy">
+          <section className="public-handoff" aria-labelledby="handoff-title">
+            <div className="public-handoff__copy">
               <p className="public-eyebrow">THE MACHINE, RECONNECTED</p>
               <h2 id="handoff-title">Every part. One picture.</h2>
               <p>
@@ -299,7 +299,7 @@ export function LandingExperience() {
                 estimates, then test a different decision.
               </p>
               <div
-                className="machine-handoff__signals"
+                className="public-handoff__signals"
                 aria-label="Your race workspace"
               >
                 <span>

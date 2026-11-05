@@ -25,6 +25,8 @@ it("keeps one car stage through the downstream handoff, before the real tools", 
   const handoff = screen.getByRole("region", {
     name: "Every part. One picture.",
   });
+  expect(handoff).toHaveClass("public-handoff");
+  expect(handoff).not.toHaveClass("machine-handoff");
   expect(machine).toContainElement(handoff);
   expect(container.querySelectorAll(".machine-stage")).toHaveLength(1);
   expect(
