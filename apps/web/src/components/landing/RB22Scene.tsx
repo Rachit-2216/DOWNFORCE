@@ -374,7 +374,11 @@ function RB22Model({
       damping,
     );
 
-    const transferTurn = sceneState === "hero" ? transfer.current * -0.1 : 0;
+    const transferTurn =
+      sceneState === "hero"
+        ? transfer.current *
+          (landingPoses.reassemble.rootRotation[1] - pose.rootRotation[1])
+        : 0;
     scratchQuaternion.current.setFromEuler(
       scratchEuler.current.set(
         pose.rootRotation[0],

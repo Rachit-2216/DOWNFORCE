@@ -21,6 +21,45 @@ import {
 afterEach(cleanup);
 
 describe("CarAnatomy", () => {
+  it("still labels the departing car as assembled", () => {
+    render(
+      <CarAnatomy
+        scene="handoff"
+        onSceneChange={vi.fn()}
+        tourPhase="departure"
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Assemble" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Explode" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+  it("removes departing anatomy controls from keyboard focus until the study returns", () => {
+    const { container, rerender } = render(
+      <CarAnatomy
+        scene="handoff"
+        onSceneChange={vi.fn()}
+        tourPhase="departure"
+      />,
+    );
+    expect(container.querySelector(".anatomy-section")).toHaveAttribute(
+      "inert",
+    );
+    rerender(
+      <CarAnatomy
+        scene="reassemble"
+        onSceneChange={vi.fn()}
+        tourPhase="complete"
+      />,
+    );
+    expect(container.querySelector(".anatomy-section")).not.toHaveAttribute(
+      "inert",
+    );
+  });
   it("describes the actual manual selection instead of a stale scroll phase", () => {
     const { rerender } = render(
       <CarAnatomy

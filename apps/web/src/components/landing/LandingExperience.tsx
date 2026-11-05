@@ -74,7 +74,7 @@ function usePresentationMode() {
     if (typeof window.matchMedia !== "function") return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const compact = window.matchMedia(
-      "(max-width: 800px), (max-height: 759px)",
+      "(max-width: 800px), (max-height: 679px)",
     );
     const supported = hasWebGL();
     const update = () => {
@@ -130,13 +130,18 @@ export function LandingExperience() {
         rect.top > 0
           ? transfer * 0.14
           : 0.14 + (-rect.top / Math.max(1, rect.height - viewport)) * 0.86;
+      const departure = Math.max(
+        0,
+        Math.min(1, (viewport - rect.bottom) / viewport),
+      );
       transferRef.current = transfer;
       machine.style.setProperty("--machine-transfer", String(transfer));
+      machine.style.setProperty("--machine-departure", String(departure));
       machine.style.setProperty(
         "--tour-progress",
         String(Math.max(0, Math.min(1, progress))),
       );
-      const next = scrollChapter(progress);
+      const next = scrollChapter(progress, departure);
       // Per-pixel progress stays outside React. A native button selection is
       // respected until actual scrolling crosses into another chapter.
       if (next.key !== chapterRef.current) {
@@ -198,6 +203,7 @@ export function LandingExperience() {
           className="public-machine"
           ref={machineRef}
           data-tour={interactive}
+          data-chapter={chapter.phase}
         >
           <div className="machine-track" aria-hidden="true">
             <div
@@ -283,6 +289,37 @@ export function LandingExperience() {
               }
             />
           </div>
+          <section className="machine-handoff" aria-labelledby="handoff-title">
+            <div className="machine-handoff__copy">
+              <p className="public-eyebrow">THE MACHINE, RECONNECTED</p>
+              <h2 id="handoff-title">Every part. One picture.</h2>
+              <p>
+                A race is connected in the same way. Pace, tyres and pit stops
+                only make sense together. Follow the record, explore the
+                estimates, then test a different decision.
+              </p>
+              <div
+                className="machine-handoff__signals"
+                aria-label="Your race workspace"
+              >
+                <span>
+                  <i aria-hidden="true" />
+                  Replay the record
+                </span>
+                <span>
+                  <i aria-hidden="true" />
+                  Understand the pace
+                </span>
+                <span>
+                  <i aria-hidden="true" />
+                  Compare the strategy
+                </span>
+              </div>
+              <a className="public-button" href="#online-tools">
+                Find your starting point <span aria-hidden="true">↓</span>
+              </a>
+            </div>
+          </section>
         </div>
         <section
           className="public-products"

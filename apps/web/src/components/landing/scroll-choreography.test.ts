@@ -50,4 +50,20 @@ describe("the continuous anatomy scroll tour", () => {
       sceneForComponent(1),
     );
   });
+
+  it("holds the rebuilt car before carrying it into the next section", () => {
+    expect(scrollChapter(0.94, 0).scene).toBe("reassemble");
+    expect(scrollChapter(1.02, 0.34).scene).toBe("reassemble");
+    expect(scrollChapter(1.1, 0.35).phase).toBe("departure");
+    expect(scrollChapter(1.1, 0.35).scene).toBe("handoff");
+    expect(landingPoses[scrollChapter(1.2, 1).scene].mode).toBe("assembled");
+  });
+
+  it("reverses the departure without exploding the rebuilt car", () => {
+    expect(
+      [1, 0.6, 0.35, 0.34, 0].map(
+        (departure) => scrollChapter(1, departure).scene,
+      ),
+    ).toEqual(["handoff", "handoff", "handoff", "reassemble", "reassemble"]);
+  });
 });

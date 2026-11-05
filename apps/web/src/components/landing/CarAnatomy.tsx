@@ -5,7 +5,7 @@
 import { componentSpotlights } from "@/content/landing";
 import type { ReactNode } from "react";
 
-import { sceneForComponent, type CarScene } from "./car-motion";
+import { landingPoses, sceneForComponent, type CarScene } from "./car-motion";
 import type { TourPhase } from "./scroll-choreography";
 
 export function CarAnatomy({
@@ -24,7 +24,7 @@ export function CarAnatomy({
   );
   const selected =
     selectedIndex >= 0 ? componentSpotlights[selectedIndex] : undefined;
-  const assembled = scene === "reassemble" || scene === "hero";
+  const assembled = landingPoses[scene].mode === "assembled";
   const caption = selected
     ? `SYSTEM ${String(selectedIndex + 1).padStart(2, "0")} / 08${tourPhase ? " · Scroll to continue" : " · Selected system"}`
     : !assembled
@@ -46,6 +46,7 @@ export function CarAnatomy({
       className="anatomy-section"
       id="anatomy"
       aria-labelledby="anatomy-title"
+      inert={tourPhase === "departure"}
     >
       <div className="anatomy-heading">
         <p className="public-eyebrow">01 / INSIDE THE MACHINE</p>

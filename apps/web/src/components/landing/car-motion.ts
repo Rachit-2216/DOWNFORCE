@@ -37,6 +37,7 @@ export type CarScene =
   | "spotlight-rear-wing"
   | "exploded-restore"
   | "reassemble"
+  | "handoff"
   | "story-platform"
   | "story-replay"
   | "story-intelligence"
@@ -228,13 +229,24 @@ export const landingPoses: Record<CarScene, LandingPose> = {
   reassemble: {
     mode: "assembled",
     rootPosition: [0, 0.1, 0],
-    rootRotation: [0.03, -0.72, -0.015],
+    rootRotation: [0.03, -1.25, -0.015],
     rootScale: 0.96,
     cameraPosition: [0, 2.8, 10.8],
     cameraTarget: [0, 0, 0],
     cameraFov: 36,
     textSide: "center",
     lighting: "studio",
+  },
+  handoff: {
+    mode: "assembled",
+    rootPosition: [0, 0.1, 0],
+    rootRotation: [0.03, -2.15, -0.015],
+    rootScale: 1.02,
+    cameraPosition: [0, 2.8, 10.8],
+    cameraTarget: [0, 0, 0],
+    cameraFov: 36,
+    textSide: "right",
+    lighting: "rear",
   },
   "story-platform": story("left", -0.62, 1.15),
   "story-replay": story("right", 0.94, 1.1),

@@ -1,7 +1,7 @@
 import { sceneForComponent, type CarScene } from "./car-motion";
 
 export type TourPhase =
-  "transfer" | "settled" | "exploded" | "spotlight" | "complete";
+  "transfer" | "settled" | "exploded" | "spotlight" | "complete" | "departure";
 export type ScrollChapter = {
   key: string;
   phase: TourPhase;
@@ -11,7 +11,16 @@ export type ScrollChapter = {
 
 // Transfer finishes at .14. A separate settled chapter deliberately leaves
 // scroll room between the car's arrival and the first separated assembly.
-export function scrollChapter(progress: number): ScrollChapter {
+export function scrollChapter(progress: number, departure = 0): ScrollChapter {
+  // Departure is measured from the end of the pinned study, independently of
+  // its length. Reassembly gets a real hold before the next scene turns away.
+  if (progress >= 1 && departure >= 0.35)
+    return {
+      key: "departure",
+      phase: "departure",
+      scene: "handoff",
+      partIndex: -1,
+    };
   if (progress < 0.14)
     return { key: "transfer", phase: "transfer", scene: "hero", partIndex: -1 };
   if (progress < 0.24)
